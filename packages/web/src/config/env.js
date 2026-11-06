@@ -82,6 +82,8 @@ export const config = {
   adminPassword: process.env.SIBERSLICE_ADMIN_PASSWORD ?? "",
   imageSize: (process.env.SIBERSLICE_IMAGE_GEN_SIZE ?? "1536x1024").trim(),
   maxIterations: positiveIntegerFromEnv("SIBERSLICE_MAX_ITERATIONS", 50),
+  galleryPageSize: Math.min(100, positiveIntegerFromEnv("SIBERSLICE_GALLERY_PAGE_SIZE", 20)),
+  galleryPreviewCount: Math.min(8, positiveIntegerFromEnv("SIBERSLICE_GALLERY_PREVIEW_COUNT", 4)),
   mainAiReasoningEffort: reasoningEffortFromEnv("SIBERSLICE_MAIN_AI_REASONING_EFFORT"),
   mainAiMaxOutputTokens: optionalPositiveIntegerFromEnv("SIBERSLICE_MAIN_AI_MAX_OUTPUT_TOKENS"),
   mainAi: readProvider("SIBERSLICE_MAIN_AI"),

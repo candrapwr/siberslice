@@ -142,6 +142,8 @@ Setiap provider memiliki base URL, API key, dan nama model sendiri. Base URL umu
 | `SIBERSLICE_PORT` | Port HTTP server; default `8200`. |
 | `SIBERSLICE_DATA_DIR` | Folder data sesi; default `./data`. |
 | `SIBERSLICE_MAX_ITERATIONS` | Batas iterasi agent AI utama per proses generate; bilangan bulat positif, default `50`. |
+| `SIBERSLICE_GALLERY_PAGE_SIZE` | Jumlah grup aset per halaman di `/api/gallery` dan galeri landing; default `20`, maksimal `100`. |
+| `SIBERSLICE_GALLERY_PREVIEW_COUNT` | Jumlah gambar preview per kartu galeri; default `4`, maksimal `8`. Grid kartu menyesuaikan jumlah baris otomatis. |
 | `SIBERSLICE_ADMIN_PASSWORD` | Password bersama untuk masuk ke `/admin`; wajib diisi agar endpoint admin aktif. |
 | `SIBERSLICE_S3_BUCKET` | Bucket S3-compatible untuk menyimpan hasil generate. Kosong = penyimpanan lokal saja. |
 | `SIBERSLICE_S3_ACCESS_KEY` / `SIBERSLICE_S3_SECRET_KEY` | Kredensial bucket. Keduanya wajib bersama bucket agar mode S3 aktif. |

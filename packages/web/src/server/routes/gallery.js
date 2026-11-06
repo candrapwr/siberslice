@@ -6,7 +6,7 @@ import { sessionIdPattern } from "../session-store.js";
 import { publicObjectUrl } from "../s3-store.js";
 
 const sessionsDir = join(config.dataDir, "sessions");
-const GALLERY_PAGE_SIZE = 20;
+const GALLERY_PAGE_SIZE = config.galleryPageSize;
 
 async function directoryEntries(path) {
   try {
@@ -56,7 +56,7 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
   if (assets.length === 0) return null;
 
   // Preview = up to 4 individual assets (spread evenly), not the full sheet (lighter & clearer).
-  const previewCount = 4;
+  const previewCount = config.galleryPreviewCount;
   const step = assets.length <= previewCount ? 1 : Math.floor((assets.length - 1) / (previewCount - 1));
   const previewSources = assets.map((asset) => asset.publicUrl ?? asset.url);
   const previewUrls = [];

@@ -141,7 +141,9 @@ function renderCells(){
     preview.className = 'gallery-card-preview';
     const thumbs = document.createElement('span');
     thumbs.className = 'gallery-card-thumbs';
-    for (const url of (group.previewUrls ?? []).slice(0, 4)) {
+    const previews = (group.previewUrls ?? []).slice(0, 8);
+    thumbs.style.gridTemplateRows = `repeat(${Math.max(1, Math.ceil(previews.length / 2))}, minmax(0, 1fr))`;
+    for (const url of previews) {
       const image = document.createElement('img');
       image.src = url;
       image.alt = '';

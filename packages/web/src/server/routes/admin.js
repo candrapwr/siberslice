@@ -239,15 +239,22 @@ export async function handleAdminSessionDetail(res, sessionId) {
 
   const runs = await Promise.all([...runsById.values()].map(async (run) => {
     const runFolder = join(result.folder, "runs", run.runId);
+    // Deliverables may live only in S3 (uploaded, possibly purged from disk):
+    // the run manifest says whether a file is served, not the local filesystem.
+    const manifest = run.s3 ?? null;
     const assetEntries = (await directoryEntries(join(runFolder, "assets")))
       .filter((entry) => entry.isFile() && validAssetName(entry.name));
     const metadataAssets = Array.isArray(run.assets) ? run.assets : [];
     const assetsByName = new Map(metadataAssets.filter((asset) => validAssetName(asset?.name)).map((asset) => [asset.name, asset]));
     for (const entry of assetEntries) if (!assetsByName.has(entry.name)) assetsByName.set(entry.name, { name: entry.name });
+    for (const key of manifest ? Object.keys(manifest) : []) {
+      const match = key.match(/^assets\/(.+)$/);
+      if (match && validAssetName(match[1]) && !assetsByName.has(match[1])) assetsByName.set(match[1], { name: match[1] });
+    }
     const assets = await Promise.all([...assetsByName.values()].map(async (asset, index) => {
       const name = asset.name;
       const url = `/api/sessions/${sessionId}/files/runs/${run.runId}/assets/${encodeURIComponent(name)}`;
-      const exists = await isFile(join(runFolder, "assets", name));
+      const exists = Boolean(manifest?.[`assets/${name}`]) || await isFile(join(runFolder, "assets", name));
       return {
         index: Number.isInteger(asset.index) ? asset.index : index + 1,
         name,
@@ -257,10 +264,14 @@ export async function handleAdminSessionDetail(res, sessionId) {
         url: exists ? url : null,
       };
     }));
-    const sheetName = await isFile(join(runFolder, "sheet-transparent.png"))
+    let sheetName = await isFile(join(runFolder, "sheet-transparent.png"))
       ? "sheet-transparent.png"
       : "sheet.png";
-    const sheetExists = await isFile(join(runFolder, sheetName));
+    let sheetExists = await isFile(join(runFolder, sheetName));
+    if (!sheetExists && manifest) {
+      sheetName = manifest["sheet-transparent.png"] ? "sheet-transparent.png" : "sheet.png";
+      sheetExists = Boolean(manifest[sheetName]);
+    }
     const logFolder = join(runFolder, "logs");
     return {
       runId: run.runId,
