@@ -164,7 +164,7 @@ function renderResult(result) {
   }
 
   const sheet = byId("sheetImage");
-  sheet.src = `${result.sheetUrl}?v=${encodeURIComponent(result.runId)}`;
+  sheet.src = result.sheetPublicUrl || `${result.sheetUrl}?v=${encodeURIComponent(result.runId)}`;
   sheet.hidden = false;
   byId("projName").textContent = (result.groupName || result.prompt || "sprite sheet").slice(0, 28);
   byId("mGrid").textContent = result.layout || "Flexible";
@@ -184,7 +184,7 @@ function renderResult(result) {
     tile.title = asset.label || asset.name;
     tile.addEventListener("click", () => openAssetPreview(asset, result, tile));
     const image = document.createElement("img");
-    image.src = `${asset.url}?v=${encodeURIComponent(result.runId)}`;
+    image.src = asset.publicUrl || `${asset.url}?v=${encodeURIComponent(result.runId)}`;
     image.alt = asset.label || asset.name;
     const index = document.createElement("div");
     index.className = "idx";

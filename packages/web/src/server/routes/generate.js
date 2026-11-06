@@ -8,7 +8,8 @@ import { readJsonBody, sendError, sendEvent } from "../http.js";
 import { claimSession, isSessionBusy, readSession, releaseSession, writeSession, sessionIdPattern } from "../session-store.js";
 import { createRunRecorder } from "../run-recorder.js";
 import { recordServerError } from "../server-log.js";
-import { runKeyPrefix, uploadRun } from "../s3-store.js";
+import { objectKey, publicObjectUrl, runKeyPrefix, uploadRun } from "../s3-store.js";
+
 
 function validateGeneration(body) {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -144,6 +145,7 @@ export async function handleGenerate(req, res, id) {
       height: result.image.height,
       storage: s3Manifest ? "s3" : "local",
       sheetUrl: `${base}/files/runs/${runId}/${sheetPath}`,
+      sheetPublicUrl: s3Manifest ? publicObjectUrl(objectKey(id, runId, sheetPath)) : null,
       exportUrl: `${base}/runs/${runId}/export`,
       assets: result.crop.assets.map((asset) => ({
         index: asset.index,
@@ -152,6 +154,7 @@ export async function handleGenerate(req, res, id) {
         width: asset.width,
         height: asset.height,
         url: `${base}/files/runs/${runId}/assets/${encodeURIComponent(asset.name)}`,
+        publicUrl: s3Manifest ? publicObjectUrl(objectKey(id, runId, `assets/${asset.name}`)) : null,
       })),
     };
     session.value.runs ??= [];

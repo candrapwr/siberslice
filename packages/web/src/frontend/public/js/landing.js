@@ -235,7 +235,7 @@ function renderCells(){
     document.getElementById('galleryAssetPreviewTitle').textContent = name;
     document.getElementById('galleryAssetPreviewMeta').textContent = `${asset.name} · ${asset.width || '?'}×${asset.height || '?'} px`;
     const image = document.getElementById('galleryAssetPreviewImage');
-    image.src = asset.url;
+    image.src = asset.publicUrl || asset.url;
     image.alt = name;
     const download = document.getElementById('galleryAssetPreviewDownload');
     download.href = `${asset.url}?download=1`;

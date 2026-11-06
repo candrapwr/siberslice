@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { config, s3Configured } from "../../config/env.js";
 import { sendJson } from "../http.js";
 import { sessionIdPattern } from "../session-store.js";
+import { publicObjectUrl } from "../s3-store.js";
 
 const sessionsDir = join(config.dataDir, "sessions");
 const GALLERY_PAGE_SIZE = 20;
@@ -50,19 +51,19 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
       width: Number(asset.width) || undefined,
       height: Number(asset.height) || undefined,
       url: `/api/sessions/${sessionId}/files/runs/${run.runId}/assets/${encodeURIComponent(asset.name)}`,
+      publicUrl: publicObjectUrl(remote?.[`assets/${asset.name}`]?.key),
     }));
   if (assets.length === 0) return null;
 
   // Preview = up to 4 individual assets (spread evenly), not the full sheet (lighter & clearer).
   const previewCount = 4;
   const step = assets.length <= previewCount ? 1 : Math.floor((assets.length - 1) / (previewCount - 1));
+  const previewSources = assets.map((asset) => asset.publicUrl ?? asset.url);
   const previewUrls = [];
   for (let i = 0; i < assets.length && previewUrls.length < previewCount; i += step) {
-    previewUrls.push(assets[i].url);
+    previewUrls.push(previewSources[i]);
   }
-  if (assets.length > previewCount && !previewUrls.includes(assets.at(-1).url)) {
-    previewUrls[previewUrls.length - 1] = assets.at(-1).url;
-  }
+  if (assets.length > previewCount) previewUrls[previewUrls.length - 1] = previewSources.at(-1);
 
   const createdAt = run.createdAt || session.createdAt || new Date(0).toISOString();
   return {

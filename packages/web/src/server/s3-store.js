@@ -33,6 +33,17 @@ export function objectKey(sessionId, runId, relativePath) {
   return `${runKeyPrefix(sessionId, runId)}/${segments.join("/")}`;
 }
 
+/**
+ * Public (unsigned) URL for an object when SIBERSLICE_S3_PUBLIC_BASE_URL is set
+ * — typically a Cloudflare R2 custom domain serving the bucket read-only.
+ * Returns null when disabled so callers keep using /api/sessions/... paths.
+ */
+export function publicObjectUrl(storedKey) {
+  const base = config.s3.publicBaseUrl;
+  if (!base || !storedKey) return null;
+  return `${base}/${storedKey.split("/").map((part) => encodeURIComponent(part)).join("/")}`;
+}
+
 async function putFile(storedKey, absolutePath, contentType) {
   const { readFile, stat } = await import("node:fs/promises");
   const info = await stat(absolutePath);

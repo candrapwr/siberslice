@@ -67,6 +67,7 @@ function readS3Config() {
     prefix: (process.env.SIBERSLICE_S3_PREFIX ?? "runs").trim().replace(/^\/+|\/+$/g, "") || "runs",
     purgeLocal: booleanFromEnv("SIBERSLICE_S3_PURGE_LOCAL", false),
     presignTtlSeconds: optionalPositiveIntegerFromEnv("SIBERSLICE_S3_PRESIGN_TTL") ?? 900,
+    publicBaseUrl: (process.env.SIBERSLICE_S3_PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, ""),
   };
 }
 

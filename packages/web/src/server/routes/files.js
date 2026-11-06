@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { config, s3Configured } from "../../config/env.js";
 import { sendError } from "../http.js";
 import { readSession, sessionIdPattern } from "../session-store.js";
-import { headObject, presignDownload } from "../s3-store.js";
+import { headObject, presignDownload, publicObjectUrl } from "../s3-store.js";
 
 const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../frontend/public");
 const localAssetReferencePattern = /((?:href|src)=["'])(\/(?:css|js)\/[^"'?#]+)(?:\?[^"']*)?(["'])/gi;
@@ -121,7 +121,18 @@ export async function handleSessionFile(res, sessionId, filePath, download = fal
       const storedKey = s3KeyForRun(session, runId, relative);
       if (storedKey) {
         const info = await headObject(storedKey);
-        if (info.exists) return await redirectPresigned(res, storedKey, download ? relative.split("/").at(-1) : null);
+        if (info.exists) {
+          // Preview/external access: stable public URL (CDN-cacheable, no presign).
+          // Download buttons: presigned URL with Content-Disposition so files save correctly.
+          const publicUrl = download ? null : publicObjectUrl(storedKey);
+          if (publicUrl) {
+            // URL API per-run bersifat stabil (konten tidak berubah), jadi redirect
+            // ini boleh di-cache agar akses eksternal langsung ke CDN.
+            res.writeHead(302, { location: publicUrl, "cache-control": "public, max-age=3600" });
+            return res.end();
+          }
+          return await redirectPresigned(res, storedKey, download ? relative.split("/").at(-1) : null);
+        }
         // Object missing from the bucket: fall through to local file if it is still on disk.
       }
       return serveFile(res, session.folder, filePath, download, download ? relative.split("/").at(-1) : undefined);

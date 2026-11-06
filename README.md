@@ -21,7 +21,7 @@ SiberSlice membantu game developer dan pembuat produk mengubah satu prompt menja
 
 Satu proses menerima **4 sampai 50 aset dengan jumlah genap**. Setiap objek boleh memiliki ukuran dan posisi berbeda; engine memetakan batas tiap objek dari gambar, bukan membagi sheet ke dalam sel berukuran sama.
 
-Landing page menampilkan grup aset dari **semua sesi** secara publik. Thumbnail grup membuka detail berisi prompt dan PNG individual, dengan opsi mengunduh seluruh paket ZIP.
+Landing page menampilkan grup aset dari **semua sesi** secara publik. Preview tiap kartu berisi maksimal 4 PNG individual (disebar merata, lebih ringan daripada sheet penuh) beserta badge status penyimpanan (S3/LOCAL); klik kartu membuka detail berisi prompt dan seluruh PNG individual, dengan opsi mengunduh satu aset atau paket ZIP.
 
 ## Hasil yang bisa dibuat
 
@@ -147,6 +147,7 @@ Setiap provider memiliki base URL, API key, dan nama model sendiri. Base URL umu
 | `SIBERSLICE_S3_ACCESS_KEY` / `SIBERSLICE_S3_SECRET_KEY` | Kredensial bucket. Keduanya wajib bersama bucket agar mode S3 aktif. |
 | `SIBERSLICE_S3_REGION` | Region S3; default `us-east-1` (MinIO/R2 sering menerima nilai ini). |
 | `SIBERSLICE_S3_ENDPOINT` | Endpoint khusus untuk MinIO/R2/Wasabi/B2. Kosong = AWS S3 asli. |
+| `SIBERSLICE_S3_PUBLIC_BASE_URL` | Opsional; origin publik bucket (mis. custom domain Cloudflare R2 `https://siberslice-s3.datasiber.com`). Jika diisi, tampilan gambar dan akses eksternal memakai URL publik stabil `<base>/<key>` yang bisa di-cache CDN — tanpa presign. Tombol download tetap memakai presigned URL agar nama file benar. Kosong = semua lewat presigned URL. |
 | `SIBERSLICE_S3_FORCE_PATH_STYLE` | `true` (default) untuk MinIO/self-hosted; `false` untuk AWS S3/R2 virtual-host style. |
 | `SIBERSLICE_S3_PREFIX` | Prefiks key objek di bucket; default `runs`. |
 | `SIBERSLICE_S3_PURGE_LOCAL` | `true` = file lokal dihapus setelah upload sukses; default `false` (file lokal tetap disimpan). |
@@ -193,13 +194,16 @@ SIBERSLICE_S3_PRESIGN_TTL=900
 
 Atur password admin yang unik di `.env`; jangan gunakan nilai contoh atau commit password ke Git. Kamu bisa membuat password acak dengan `openssl rand -base64 32`.
 
-#### Penyimpanan S3 (MinIO, Cloudflare R2, Wasabi, Backblaze, AWS S3)
+#### Penyimpanan S3 (MinIO, Cloudflare R2, Wasabi, Backblaze, AWS S3, CloudHost iS3)
 
-Jika `SIBERSLICE_S3_BUCKET`, `SIBERSLICE_S3_ACCESS_KEY`, dan `SIBERSLICE_S3_SECRET_KEY` terisi, setiap run yang selesai otomatis diunggah ke bucket (`<prefix>/<sessionId>/<runId>/...`). Frontend tetap memakai URL `/api/sessions/...` yang sama; server hanya me-redirect ke presigned URL S3, sehingga trafik gambar/ZIP besar mengalir langsung dari S3, bukan dari server Node.
+Jika `SIBERSLICE_S3_BUCKET`, `SIBERSLICE_S3_ACCESS_KEY`, dan `SIBERSLICE_S3_SECRET_KEY` terisi, setiap run yang selesai otomatis diunggah ke bucket (`<prefix>/<sessionId>/<runId>/...`) secara paralel (8 request bersamaan). Frontend tetap memakai URL `/api/sessions/...` yang sama; server hanya me-redirect ke presigned URL S3, sehingga trafik gambar/ZIP besar mengalir langsung dari S3, bukan dari server Node. Aset dan ZIP yang diunduh dengan tombol download mendapat `Content-Disposition: attachment` di dalam presigned URL sehingga tersimpan sebagai file, bukan terbuka di tab.
 
-- Run yang dibuat sebelum mode S3 aktif tidak memiliki objek di bucket. Saat filenya diminta, server membalas error jelas: *"Run ini dibuat sebelum penyimpanan S3 aktif..."* — solusinya generate ulang atau jalankan migrasi.
-- Migrasi run lama ke bucket: `npm run migrate:s3 --workspace @siberslice/web` (tambahkan `-- --purge-local` untuk menghapus file lokal setelah upload sukses).
-- `SIBERSLICE_S3_PURGE_LOCAL=true` menghapus sheet/aset/ZIP lokal setiap habis upload; log di `logs/` selalu tetap di disk.
+- **Fallback lokal:** jika upload gagal (atau run dibuat sebelum mode S3 aktif), hasil tetap aman di disk dan tetap bisa ditampilkan/diunduh — server melayani dari file lokal. Galeri dan Studio menampilkan badge status penyimpanan per grup: **S3** (hijau, tersimpan di cloud) atau **LOCAL** (merah, tersimpan di disk server).
+- **Migrasi lokal → S3:** `npm run migrate:s3 --workspace @siberslice/web` (tambahkan `-- --purge-local` untuk menghapus file lokal setelah upload sukses).
+- **Restore S3 → lokal (mengembalikan):** `npm run restore:s3 --workspace @siberslice/web` mengunduh kembali seluruh objek run ke disk dan menghapus manifest S3-nya sehingga serve kembali lewat lokal. Opsi: `-- --session <id>` (satu sesi) dan `-- --purge-remote` (hapus salinan cloud setelah unduhan berhasil). Tersedia juga dari panel admin: tombol **Kembalikan ke Lokal** di detail sesi, dengan checkbox *Hapus dari S3*.
+- **Menghapus sesi dari admin** juga menghapus objek S3 milik sesi tersebut; kegagalan cleanup S3 tidak memblokir penghapusan lokal dan dicatat di `server-errors.jsonl` (`s3_delete_failed`).
+- **Diagnostik kecepatan server → S3:** `npm run speedtest:s3 --workspace @siberslice/web -- --mb 2` mengukur latensi handshake (DNS+TCP+TLS), latensi API (HeadBucket), throughput PUT/GET, dan jalur presigned URL. Hanya menulis objek uji sementara lalu menghapusnya.
+- `SIBERSLICE_S3_PURGE_LOCAL=true` menghapus sheet/aset/ZIP lokal setiap habis upload; log di `logs/` selalu tetap di disk. Untuk provider seperti CloudHost iS3, endpoint wajib mencakup `https://` (mis. `https://is3.cloudhost.id`) dan umumnya `SIBERSLICE_S3_FORCE_PATH_STYLE=true`; bucket harus sudah dibuat sebelumnya (lewat panel atau API).
 
 #### Kebutuhan kompatibilitas API
 
@@ -213,7 +217,7 @@ API key hanya digunakan di server dan tidak dikirim ke browser.
 
 Sesi membuat ruang kerja sendiri dan tetap menyimpan hasil generate. Setiap proses generate mempunyai folder kerja terpisah di dalam sesi tersebut. Tool loop AI berlangsung hanya selama satu proses; prompt sebelumnya tidak dikirim sebagai riwayat percakapan ke permintaan generate berikutnya.
 
-Panel pengelola tersedia di `/admin`. Panel ini menampilkan daftar sesi, metadata session, prompt, sheet, aset PNG, ZIP, log percakapan AI, event proses, dan log error server. Pengelola juga dapat menghapus satu sesi beserta seluruh run dan file di dalamnya. Pemeriksaan runtime di panel memverifikasi executable `python3`, versi Python, serta paket Pillow dan NumPy yang dipakai slicing.
+Panel pengelola tersedia di `/admin`. Panel ini menampilkan daftar sesi, metadata session, prompt, sheet, aset PNG, ZIP, log percakapan AI, event proses, dan log error server. Pengelola dapat menghapus satu sesi beserta seluruh run, file lokal, dan objek S3-nya, serta memulihkan run dari S3 kembali ke disk lewat tombol **Kembalikan ke Lokal**. Pemeriksaan runtime di panel memverifikasi executable `python3`, versi Python, serta paket Pillow dan NumPy yang dipakai slicing.
 
 Panel admin memakai satu password bersama dari `SIBERSLICE_ADMIN_PASSWORD` dan cookie sesi HttpOnly yang berakhir setelah 8 jam. Jika password belum disetel, login dan endpoint admin dinonaktifkan. Autentikasi pengguna per akun belum tersedia; galeri dan endpoint generate tetap publik.
 
@@ -249,7 +253,7 @@ Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan respon
 | Method | Endpoint | Keterangan |
 |---|---|---|
 | `GET` | `/api/config` | Status kesiapan dan nama model provider, tanpa API key. |
-| `GET` | `/api/gallery?offset=0` | Mengambil satu halaman berisi maksimal 20 grup aset publik. Respons memberikan `nextOffset` dan `hasMore` untuk tombol Load more. |
+| `GET` | `/api/gallery?offset=0` | Mengambil satu halaman berisi maksimal 20 grup aset publik (`previewUrls` maksimal 4 aset, `storage` `s3`/`local`, `nextOffset`/`hasMore` untuk Load more). |
 | `POST` | `/api/sessions` | Membuat sesi baru. |
 | `GET` | `/api/sessions/:sessionId` | Membaca metadata sesi dan hasil terakhir. |
 | `POST` | `/api/sessions/:sessionId/generate` | Memulai proses generate dan mengirim progres melalui Server-Sent Events. |
@@ -261,7 +265,8 @@ Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan respon
 | `GET` | `/api/admin/sessions` | Daftar sesi untuk panel admin. |
 | `GET` | `/api/admin/sessions/:sessionId` | Detail session, seluruh run, dan daftar asetnya. |
 | `GET` | `/api/admin/sessions/:sessionId/runs/:runId/logs/:type` | Membaca log `conversation` atau `events` dari satu run. |
-| `DELETE` | `/api/admin/sessions/:sessionId` | Menghapus sesi dan seluruh file di dalamnya; ditolak saat sesi sedang dipakai. |
+| `DELETE` | `/api/admin/sessions/:sessionId` | Menghapus sesi, seluruh file lokal, dan objek S3 miliknya; ditolak saat sesi sedang dipakai. |
+| `POST` | `/api/admin/sessions/:sessionId/restore` | Memulihkan run S3 sesi ke disk lokal; body opsional `{ "purgeRemote": true }` untuk hapus salinan cloud. |
 | `GET` | `/api/admin/python-check` | Memeriksa Python, Pillow, dan NumPy yang tersedia untuk server. |
 | `GET` | `/api/admin/server-errors` | Membaca catatan error server terbaru. |
 
