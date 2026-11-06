@@ -156,7 +156,11 @@ function renderCells(){
     theme.textContent = group.theme || 'General';
     const count = document.createElement('span');
     count.textContent = `${group.count} PNG`;
-    meta.append(theme, count);
+    const storage = document.createElement('span');
+    storage.className = `gallery-card-storage ${group.storage === 's3' ? 'is-s3' : 'is-local'}`;
+    storage.textContent = group.storage === 's3' ? 'S3' : 'LOCAL';
+    storage.title = group.storage === 's3' ? 'Disimpan di cloud (S3)' : 'Disimpan di server lokal';
+    meta.append(theme, count, storage);
     const open = document.createElement('span');
     open.className = 'gallery-card-open';
     const date = document.createElement('span');

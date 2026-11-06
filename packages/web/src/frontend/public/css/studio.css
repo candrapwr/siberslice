@@ -164,7 +164,10 @@
   .asset-group-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid var(--border)}
   .asset-group-heading>div>span{color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:.12em}
   .asset-group-heading h2{margin-top:5px;color:var(--ink);font-size:22px;font-weight:650;letter-spacing:-.035em;line-height:1.2}
-  .asset-group-heading>#assetGroupMeta{color:var(--muted);font-family:var(--mono);font-size:9px;text-align:right}
+  .asset-group-heading>.asset-group-meta-line{display:flex;flex-direction:column;align-items:flex-end;gap:6px;color:var(--muted);font-family:var(--mono);font-size:9px;text-align:right}
+  .storage-badge{padding:1px 6px;border:1px solid currentColor;border-radius:3px;font:600 8px/1.4 var(--mono);letter-spacing:.06em}
+  .storage-badge.is-s3{color:#46c07a}
+  .storage-badge.is-local{color:#e5604d}
   .assets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:14px}
   .tile{position:relative;width:100%;padding:0;color:inherit;font:inherit;text-align:left;border:1px solid var(--border-2);background-color:#101116;background-image:linear-gradient(45deg,#15171e 25%,transparent 25%),linear-gradient(-45deg,#15171e 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#15171e 75%),linear-gradient(-45deg,transparent 75%,#15171e 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;cursor:pointer;aspect-ratio:1;overflow:hidden;transition:border-color .14s,transform .14s}
   .tile:hover{border-color:var(--accent)}

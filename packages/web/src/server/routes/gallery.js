@@ -82,6 +82,7 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
     theme: typeof run.theme === "string" ? run.theme : "general",
     style: typeof run.style === "string" ? run.style : "general",
     count: Number(run.count) || assets.length,
+    storage: remote ? "s3" : "local",
     thumbnailUrl: `/api/sessions/${sessionId}/files/runs/${run.runId}/${sheetName}`,
     exportUrl: `/api/sessions/${sessionId}/runs/${run.runId}/export`,
     assets,

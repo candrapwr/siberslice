@@ -122,8 +122,11 @@ export async function handleGenerate(req, res, id) {
           ]);
         }
       } catch (uploadError) {
+        // Failed/partial upload must not lose the run: uploadRun() already removed
+        // partial objects; keep local files and serve from disk with a LOCAL badge.
         const detail = uploadError instanceof Error ? uploadError.message : String(uploadError);
-        throw new Error(`Hasil generate gagal diunggah ke S3: ${detail}`);
+        s3Manifest = null;
+        await recorder.event({ level: "warn", type: "s3_upload_failed", message: `${detail} — run disimpan lokal.` }).catch(() => {});
       }
     }
 

@@ -155,6 +155,13 @@ function renderResult(result) {
 
   byId("assetGroupName").textContent = result.groupName || "Kumpulan Aset";
   byId("assetGroupMeta").textContent = `${result.assets.length} aset · ${themeNames[result.theme] || result.theme || "General"} · ${result.style || "general"}`;
+  const storageBadge = byId("storageBadge");
+  if (storageBadge) {
+    storageBadge.hidden = false;
+    storageBadge.textContent = result.storage === "s3" ? "S3" : "LOCAL";
+    storageBadge.className = `storage-badge ${result.storage === "s3" ? "is-s3" : "is-local"}`;
+    storageBadge.title = result.storage === "s3" ? "Disimpan di cloud (S3)" : "Disimpan di server lokal";
+  }
 
   const sheet = byId("sheetImage");
   sheet.src = `${result.sheetUrl}?v=${encodeURIComponent(result.runId)}`;

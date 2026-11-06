@@ -272,6 +272,9 @@ section[id] { scroll-margin-top: 72px; }
 .gallery-card-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .gallery-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font: 500 8px/1.4 var(--mono); text-transform: uppercase; }
 .gallery-card-theme { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-card-storage { flex: none; padding: 1px 5px; border: 1px solid currentColor; border-radius: 3px; font: 600 7px/1.4 var(--mono); letter-spacing: .06em; }
+.gallery-card-storage.is-s3 { color: #46c07a; }
+.gallery-card-storage.is-local { color: #e5604d; }
 .gallery-card-open { display: flex; justify-content: space-between; margin-top: 2px; padding-top: 9px; color: var(--ink-2); border-top: 1px solid var(--border); font: 500 8px/1 var(--mono); letter-spacing: .04em; }
 .gallery-card-open b { color: var(--accent); font-size: 12px; }
 .gallery-more { display: block; min-height: 39px; margin: 28px auto 0; padding: 0 15px; color: var(--ink-2); border: 1px solid var(--border-2); background: var(--surface); cursor: pointer; font: 500 9px/1 var(--mono); text-transform: uppercase; }

@@ -81,16 +81,30 @@ async function mapPool(items, concurrency, worker) {
  * Upload all generated deliverables of a run (sheets, assets, export zip).
  * Returns a manifest of stored keys: { "runs/<id>/sheet.png": { key, size }, ... }
  * keyed by the session-relative path so readers can map old paths to objects.
- * Uploads run concurrently (pool of UPLOAD_CONCURRENCY).
+ * Uploads run concurrently (pool of UPLOAD_CONCURRENCY). On any failure the
+ * already-uploaded objects are deleted again, so callers can safely fall back
+ * to local storage without leaving orphan keys in the bucket.
  */
 export async function uploadRun({ sessionId, runId, runDir, files }) {
-  const entries = await mapPool(files, UPLOAD_CONCURRENCY, async (relative) => {
-    const absolute = `${runDir}/${relative}`;
-    const storedKey = objectKey(sessionId, runId, relative);
-    const info = await putFile(storedKey, absolute, guessContentType(relative));
-    return [relative, info];
+  const manifest = {};
+  const uploadedKeys = [];
+  let failure = null;
+  await mapPool(files, UPLOAD_CONCURRENCY, async (relative) => {
+    if (failure) return;
+    try {
+      const absolute = `${runDir}/${relative}`;
+      const storedKey = objectKey(sessionId, runId, relative);
+      manifest[relative] = await putFile(storedKey, absolute, guessContentType(relative));
+      uploadedKeys.push(storedKey);
+    } catch (error) {
+      failure ??= error;
+    }
   });
-  return Object.fromEntries(entries);
+  if (failure) {
+    await deleteRunObjects(uploadedKeys).catch(() => {});
+    throw failure;
+  }
+  return manifest;
 }
 
 export async function headObject(storedKey) {

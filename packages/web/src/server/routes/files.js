@@ -119,10 +119,12 @@ export async function handleSessionFile(res, sessionId, filePath, download = fal
     try {
       const relative = decodeURIComponent(match[2]).split(/[\\/]+/).filter(Boolean).join("/");
       const storedKey = s3KeyForRun(session, runId, relative);
-      if (!storedKey) return sendError(res, 409, "Run ini dibuat sebelum penyimpanan S3 aktif, jadi filenya tidak tersedia di cloud. Generate ulang aset ini untuk memakai S3.");
-      const info = await headObject(storedKey);
-      if (!info.exists) return sendError(res, 404, "File tidak ditemukan di S3 (mungkin sudah dihapus dari bucket).");
-      return await redirectPresigned(res, storedKey, download ? relative.split("/").at(-1) : null);
+      if (storedKey) {
+        const info = await headObject(storedKey);
+        if (info.exists) return await redirectPresigned(res, storedKey, download ? relative.split("/").at(-1) : null);
+        // Object missing from the bucket: fall through to local file if it is still on disk.
+      }
+      return serveFile(res, session.folder, filePath, download, download ? relative.split("/").at(-1) : undefined);
     } catch (error) {
       if (error?.code === "URIError") return sendError(res, 400, "Path file tidak valid.");
       throw error;
@@ -143,10 +145,12 @@ export async function handleExport(res, sessionId, runId) {
   const downloadName = `${groupName}.zip`;
   if (s3Configured()) {
     const storedKey = s3KeyForRun(session, runId, "assets.zip");
-    if (!storedKey) return sendError(res, 409, "Run ini dibuat sebelum penyimpanan S3 aktif, jadi export-nya belum tersedia di cloud. Generate ulang aset ini untuk memakai S3.");
-    const info = await headObject(storedKey);
-    if (!info.exists) return sendError(res, 404, "File tidak ditemukan di S3 (mungkin sudah dihapus dari bucket).");
-    return redirectPresigned(res, storedKey, downloadName);
+    if (storedKey) {
+      const info = await headObject(storedKey);
+      if (info.exists) return redirectPresigned(res, storedKey, downloadName);
+    }
+    // No S3 object (run stored locally or object deleted): serve the local zip when present.
+    return serveFile(res, session.folder, `runs/${runId}/assets.zip`, true, downloadName);
   }
   return serveFile(res, session.folder, `runs/${runId}/assets.zip`, true, downloadName);
 }
