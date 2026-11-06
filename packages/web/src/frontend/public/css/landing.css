@@ -533,6 +533,11 @@ body.modal-open { overflow: hidden; }
   .footer-inner > span:nth-of-type(1) { display: none; }
   .footer-inner > span:last-child { margin-left: auto; }
   .overlay { padding: 12px; }
+  .asset-preview-dialog { max-height: calc(100vh - 24px); }
+  .asset-preview-head { padding: 13px 14px; }
+  .asset-preview-stage { min-height: 170px; max-height: calc(100vh - 112px); padding: 12px; }
+  .asset-preview-stage img { max-height: calc(100vh - 182px); }
+  .asset-preview-foot { padding: 9px 12px; }
   .lab-modal { max-height: calc(100vh - 24px); }
   .gallery-modal { max-height: calc(100vh - 24px); }
   .gallery-modal-head { padding: 19px 16px 15px; }
