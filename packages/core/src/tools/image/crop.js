@@ -252,6 +252,7 @@ max_gap = max(12, min(80, int(math.sqrt(image_area / expected_count) * 0.22)))
 component_counts = []
 selected = None
 selected_threshold = None
+saw_degenerate = False
 
 for threshold in thresholds:
     components = connected_components(mask_for_threshold(threshold))
@@ -259,19 +260,34 @@ for threshold in thresholds:
     component_counts.append(len(components))
     grouped = merge_fragments(components, expected_count, max_gap)
     if grouped is not None:
-        selected, selected_gap = grouped
+        boxes, used_gap = grouped
+        areas = sorted(box["area"] for box in boxes)
+        median_area = areas[len(areas) // 2]
+        # Reject selections that contain near-empty groups: they produce
+        # transparent crops and usually mean the sheet is missing an asset.
+        min_group_area = max(48, int(median_area * 0.05))
+        if any(box["area"] < min_group_area for box in boxes):
+            saw_degenerate = True
+            continue
+        selected = boxes
+        selected_gap = used_gap
         selected_threshold = threshold
         break
 
 if selected is None:
     closest = min(component_counts, key=lambda value: abs(value - expected_count)) if component_counts else 0
     detail = "; ".join("%s:%s" % (threshold, count) for threshold, count in zip(thresholds, component_counts))
+    hint = (
+        " Ditemukan kelompok piksel yang hampir kosong (objek hilang atau hanya bintik kecil); "
+        "buat ulang sheet dengan setiap aset sebagai satu siluet padat yang jelas terlihat."
+        if saw_degenerate else
+        " Pastikan tiap aset terpisah dan objek dekoratif yang terlepas tidak terlalu jauh."
+    )
     shutil.rmtree(out_dir, ignore_errors=True)
     print(json.dumps({
         "validationError": (
-            "Deteksi komponen menemukan %d kelompok pada pengaturan terdekat (butuh %d). Jumlah per ambang: %s. "
-            "Pastikan tiap aset terpisah dan objek dekoratif yang terlepas tidak terlalu jauh."
-        ) % (closest, expected_count, detail)
+            "Deteksi komponen menemukan %d kelompok pada pengaturan terdekat (butuh %d). Jumlah per ambang: %s.%s"
+        ) % (closest, expected_count, detail, hint)
     }))
     sys.exit(0)
 

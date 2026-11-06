@@ -3,23 +3,26 @@ import { executeShell } from "../tools/cli/exec.js";
 import { cropAssets, generateImage } from "../tools/image/index.js";
 
 const MAX_IMAGE_ATTEMPTS = 2;
+const MAX_GRID_COLUMNS = 10;
+const GRID_WASTE_WEIGHT = 0.3;
+const DEFAULT_IMAGE_SIZE = "1536x1024";
 
 const tools = [
   {
   "type": "function",
   "function": {
     "name": "image_gen",
-    "description": "Generate one transparent PNG sprite sheet. CRITICAL RULES: 1) Pure transparent background only. 2) Every asset must be fully isolated. 3) Minimum 64 pixels of transparent space between any two assets. 4) Minimum 80 pixels of transparent padding from all four edges of the canvas. 5) No asset pixel may touch another asset or the canvas border. 6) Arrange in clear left-to-right, top-to-bottom reading order. Fail the generation if these spacing rules are violated.",
+    "description": "Generate one transparent PNG sprite sheet. Image models cannot follow exact pixel numbers, so express spacing RELATIVELY (as a fraction of an asset's own size). Non-negotiable rules the prompt must state: 1) fully transparent background; 2) every asset is ONE single connected silhouette — no detached dots, sparkles, rain drops, splashes, swarms of separate creatures, or floating particles; 3) generous empty space between assets, roughly half an asset's own width, and no asset touching another asset or the canvas border; 4) assets arranged in reading order (left-to-right, top-to-bottom); 5) for 12+ assets, ask for a neat aligned grid of equal cells instead of irregular rows.",
     "parameters": {
       "type": "object",
       "properties": {
         "prompt": {
           "type": "string",
-          "description": "Must explicitly enforce: pure transparent background, minimum 64px gap between every asset, minimum 80px padding from all edges, no touching between assets or edges."
+          "description": "English art-direction prompt. Enforce with relative terms (never pixel counts): transparent background, one connected silhouette per asset with no floating details, wide empty gutters about half an asset's width, safe margin from canvas edges, reading-order layout. For 12+ assets also require a tidy aligned grid with equal spacing."
         },
         "assetNames": {
           "type": "array",
-          "description": "Exactly one short descriptive kebab-case filename per asset, in visual reading order (left-to-right, top-to-bottom).",
+          "description": "Exactly one short descriptive kebab-case filename per asset, in visual reading order (left-to-right, top-to-bottom). Each name MUST denote a single solid object — never 'swarm', 'particles', 'drops', 'sparkles', 'splatter', 'confetti', or anything that implies multiple separate shapes.",
           "items": { "type": "string" }
         }
       },
@@ -70,13 +73,55 @@ const tools = [
   },
 ];
 
-function systemPrompt(input) {
+function parseAspect(imageSize) {
+  const match = String(imageSize ?? DEFAULT_IMAGE_SIZE).match(/^(\d+)\s*[x×]\s*(\d+)$/i);
+  if (!match) return 1.5;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!width || !height) return 1.5;
+  const ratio = width / height;
+  return ratio >= 0.25 && ratio <= 4 ? ratio : 1.5;
+}
+
+/**
+ * Pick a grid shape for the sheet: cell shape closest to the canvas aspect
+ * ratio, with a small penalty for wasted cells so exact fits win ties.
+ * Columns are capped at 10 so a row of tiny slivers is never suggested.
+ */
+function chooseGrid(count, imageSize) {
+  const ratio = parseAspect(imageSize);
+  const total = Number.isSafeInteger(count) && count > 0 ? count : 1;
+  let best = { rows: 1, columns: Math.min(total, MAX_GRID_COLUMNS) };
+  let bestScore = Infinity;
+  for (let columns = 1; columns <= Math.min(total, MAX_GRID_COLUMNS); columns += 1) {
+    const rows = Math.ceil(total / columns);
+    const wasted = rows * columns - total;
+    const shapeError = Math.abs(Math.log((columns / rows) / ratio));
+    const score = shapeError + wasted * GRID_WASTE_WEIGHT;
+    if (score < bestScore - 1e-9) {
+      bestScore = score;
+      best = { rows, columns };
+    }
+  }
+  return best;
+}
+
+function gridSentence(count, imageSize) {
+  const { rows, columns } = chooseGrid(count, imageSize);
+  const cells = rows * columns;
+  const filler = cells - count;
+  return `a neat aligned grid of ${rows} rows x ${columns} columns (${cells} equal-size invisible cells${filler ? `, leave ${filler} cell${filler > 1 ? "s" : ""} empty` : ""}), perfectly straight rows and columns, each asset centered in its own cell, generous empty gutters about half an asset's width, and a wide margin from every canvas edge`;
+}
+
+function systemPrompt(input, imageSize) {
+  const grid = gridSentence(input.count, imageSize);
   return [
     "You are SiberSlice, an asset-sheet production agent. Finish the user's generation request by using the available tools. Do not ask follow-up questions.",
-    `The user wants exactly ${input.count} distinct assets. Their visual sizes and positions may vary; arrange them as a well-spaced, readable sheet without fixed-size cells. Theme: ${input.theme}. Style: ${input.style}.`,
-    `Required workflow: call image_gen with exactly ${input.count} descriptive assetNames in reading order, then call crop_assets. The crop tool segments the actual PNG pixels locally with connected-component analysis, groups nearby detached details, and returns one crop per requested asset. It does not call the image analyzer or use AI-generated coordinates.`,
-    `If crop_assets reports that it could not find exactly ${input.count} groups, call image_gen one more time with clearer gaps and fewer detached decorative particles, preserving the requested items and names. At most ${MAX_IMAGE_ATTEMPTS} sheets may be generated.`,
-    "Ask the image model for visually isolated assets with generous transparent gaps, but allow different sizes and irregular rows. Do not ask for an equal-cell grid. You may use exec for supplementary local inspection, but do not calculate or invent crop boxes with AI; the crop tool performs pixel segmentation. Keep files in the current work directory.",
+    `The user wants exactly ${input.count} distinct assets. Their visual sizes may vary, but every asset must sit clearly separated from its neighbors. Theme: ${input.theme}. Style: ${input.style}.`,
+    "Image generation models cannot follow exact pixel measurements and cannot reliably count objects. Never write pixel numbers in the image prompt; describe spacing relatively (gutters about half an asset's width, wide margin from the edges). Each asset must be requested as ONE solid connected silhouette: forbid detached rain drops, sparkles, splashes, dust, floating wings, and swarms of separate creatures. Never choose an asset name that implies multiple disconnected objects (e.g. 'bat-swarm', 'splash'); use a single compact object instead (e.g. 'one-bat', 'water-drop').",
+    `Required workflow: call image_gen with exactly ${input.count} descriptive assetNames in reading order, then call crop_assets. The crop tool segments the actual PNG pixels locally with connected-component analysis, groups nearby detached details, and returns one crop per requested asset. It does not call the image analyzer or use AI-generated coordinates. Ask the image model for ${grid}.`,
+    `If crop_assets reports that it could not find exactly ${input.count} groups, call image_gen one more time: enforce ${grid}, simplify every asset into one solid connected silhouette, remove all detached decorative fragments, and keep the requested items and names. At most ${MAX_IMAGE_ATTEMPTS} sheets may be generated.`,
+    "You may use exec for supplementary local inspection, but do not calculate or invent crop boxes with AI; the crop tool performs pixel segmentation. Keep files in the current work directory.",
     "After crop_assets succeeds, call name_asset_group exactly once. Name the complete group with a clear 2–6 word title in the same language as the user's prompt, reflecting the theme and assets. Do not use a generic title such as 'Asset Group'. Then stop.",
   ].join("\n\n");
 }
@@ -105,9 +150,9 @@ function normalizeAssetNames(values, count) {
   });
 }
 
-function makeImagePrompt(modelPrompt, input, assetNames) {
+function makeImagePrompt(modelPrompt, input, assetNames, imageSize) {
   const orderedNames = assetNames.map((name, index) => `${index + 1}. ${name}`).join("; ");
-  return `${modelPrompt}\n\nSHEET REQUIREMENTS: exactly ${input.count} distinct assets on one transparent PNG. Include one visual item for each item name in this order: ${orderedNames}. Keep their visual reading order aligned with the list. Arrange them in a balanced, easy-to-scan composition; loose, irregular rows and different natural object sizes are welcome. Do not force equal-size cells. Leave clear transparent gaps between every complete object, including outlines, shadows, glows, and attached particles; keep detached decorative fragments close to their object. Keep all artwork inside the canvas. No text, labels, numbers, captions, borders, grid lines, or watermark.`;
+  return `${modelPrompt}\n\nSHEET REQUIREMENTS: ${input.count} distinct assets on one transparent PNG. Include one visual item for each item name in this order: ${orderedNames}. Keep their visual reading order aligned with the list. Arrangement: ${gridSentence(input.count, imageSize)}. Do not vary sizes drastically, do not rotate items, do not overlap. Never let two assets touch or merge, and keep every asset fully inside the canvas. Each asset must be a single connected silhouette: no detached dots, sparkles, rain drops, splashes, dust, floating parts, or swarms of separate objects — attach or omit every small detail. No text, labels, numbers, captions, borders, grid lines, or watermark.`;
 }
 
 async function callMainAi(messages, providerConfig, recorder, iteration, reasoningEffort, maxOutputTokens) {
@@ -195,6 +240,7 @@ export async function runAgent({
   const effortValues = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
   const mainAiEffort = effortValues.includes(reasoningEffort) ? reasoningEffort : "none";
   const mainAiTokenLimit = Number.isSafeInteger(maxOutputTokens) && maxOutputTokens > 0 ? maxOutputTokens : undefined;
+  const sheetGrid = chooseGrid(input.count, imageSize);
   const state = {
     generated: null,
     imageAttempts: 0,
@@ -204,10 +250,10 @@ export async function runAgent({
     groupName: null,
   };
   const messages = [
-    { role: "system", content: systemPrompt(input) },
+    { role: "system", content: systemPrompt(input, imageSize) },
     {
       role: "user",
-      content: `Prompt aset: ${input.prompt}\nTema: ${input.theme}\nGaya: ${input.style}\nJumlah: ${input.count}\nTata letak: fleksibel, ukuran tiap aset boleh berbeda, beri jarak yang cukup. Siapkan juga satu nama file deskriptif untuk setiap aset.`,
+      content: `Prompt aset: ${input.prompt}\nTema: ${input.theme}\nGaya: ${input.style}\nJumlah: ${input.count}\nTata letak: grid rata ${sheetGrid.rows} baris x ${sheetGrid.columns} kolom dengan sel sama besar, satu aset per sel, jarak kosong lebar sekitar setengah lebar aset. Siapkan juga satu nama file deskriptif untuk setiap aset (satu objek tunggal yang menyatu, bukan gerombolan atau partikel terlepas).`,
     },
   ];
 
@@ -247,9 +293,9 @@ export async function runAgent({
           if (state.crop) throw new Error("Sheet sudah berhasil dipotong; tidak perlu membuat ulang.");
           const retryIssues = state.cropIssues;
           state.assetNames = normalizeAssetNames(args.assetNames, input.count);
-          let prompt = makeImagePrompt(args.prompt ?? input.prompt, input, state.assetNames);
+          let prompt = makeImagePrompt(args.prompt ?? input.prompt, input, state.assetNames, imageSize);
           if (retryIssues.length > 0) {
-            prompt += `\n\nREQUIRED RETRY FIXES from local pixel segmentation: ${retryIssues.join("; ")}. Preserve exactly ${input.count} named assets, separate each silhouette clearly, and keep detached decoration close to its parent asset.`;
+            prompt += `\n\nREQUIRED RETRY FIXES from local pixel segmentation: ${retryIssues.join("; ")}. Preserve the ${input.count} named assets and reading order, but redraw the sheet as a strict aligned ${sheetGrid.rows}x${sheetGrid.columns} grid of equal cells, draw every asset as ONE solid connected silhouette with no detached drops, sparkles, splashes, or separate swarm members, and keep every asset well away from the canvas borders and from each other.`;
           }
           state.imageAttempts += 1;
           state.generated = null;
@@ -351,5 +397,10 @@ export async function runAgent({
     throw new Error(`AI belum berhasil melakukan auto-slicing tepat ${input.count} aset dalam ${iterationLimit} iterasi.`);
   }
   if (!state.groupName) throw new Error("AI belum memberi nama grup aset.");
-  return { layout: "Flexible", image: state.generated, crop: state.crop, groupName: state.groupName };
+  return {
+    layout: `${sheetGrid.rows}x${sheetGrid.columns}`,
+    image: state.generated,
+    crop: state.crop,
+    groupName: state.groupName,
+  };
 }

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const MAX_OUTPUT = 40_000;
+const MAX_OUTPUT = 8_000_000;
 
 export function runPython(script, input, cwd, timeoutMs = 120_000) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -9,11 +9,22 @@ export function runPython(script, input, cwd, timeoutMs = 120_000) {
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"],
     });
-    let stdout = "";
+    const stdoutChunks = [];
+    let stdoutBytes = 0;
     let stderr = "";
+    let overflow = false;
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.stdout.on("data", (chunk) => {
-      if (stdout.length < MAX_OUTPUT) stdout += chunk.toString();
+      // Accumulate until the cap, then stop and fail loudly instead of
+      // silently truncating JSON that later cannot be parsed.
+      if (overflow) return;
+      stdoutBytes += chunk.length;
+      if (stdoutBytes > MAX_OUTPUT) {
+        overflow = true;
+        stdoutChunks.length = 0;
+        return;
+      }
+      stdoutChunks.push(chunk);
     });
     child.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_OUTPUT) stderr += chunk.toString();
@@ -24,7 +35,9 @@ export function runPython(script, input, cwd, timeoutMs = 120_000) {
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (overflow) return rejectPromise(new Error(`Output proses Python melebihi batas ${MAX_OUTPUT} byte.`));
       if (code !== 0) return rejectPromise(new Error(stderr.trim() || `Proses Python berakhir dengan kode ${code}.`));
+      const stdout = Buffer.concat(stdoutChunks).toString("utf8");
       try {
         resolvePromise(JSON.parse(stdout));
       } catch {
