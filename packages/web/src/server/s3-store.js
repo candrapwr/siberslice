@@ -59,19 +59,38 @@ function guessContentType(path) {
   return CONTENT_TYPES.get(ext) ?? "application/octet-stream";
 }
 
+// S3 has no bulk PUT API — every object is its own request — so speed comes
+// from running requests concurrently. The pool size keeps memory bounded
+// (each upload buffers one file) and avoids tripping provider rate limits.
+const UPLOAD_CONCURRENCY = 8;
+
+async function mapPool(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function next() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
+  return results;
+}
+
 /**
  * Upload all generated deliverables of a run (sheets, assets, export zip).
  * Returns a manifest of stored keys: { "runs/<id>/sheet.png": { key, size }, ... }
  * keyed by the session-relative path so readers can map old paths to objects.
+ * Uploads run concurrently (pool of UPLOAD_CONCURRENCY).
  */
 export async function uploadRun({ sessionId, runId, runDir, files }) {
-  const manifest = {};
-  for (const relative of files) {
+  const entries = await mapPool(files, UPLOAD_CONCURRENCY, async (relative) => {
     const absolute = `${runDir}/${relative}`;
     const storedKey = objectKey(sessionId, runId, relative);
-    manifest[relative] = await putFile(storedKey, absolute, guessContentType(relative));
-  }
-  return manifest;
+    const info = await putFile(storedKey, absolute, guessContentType(relative));
+    return [relative, info];
+  });
+  return Object.fromEntries(entries);
 }
 
 export async function headObject(storedKey) {
@@ -95,15 +114,9 @@ export async function presignDownload(storedKey, { filename, ttlSeconds } = {}) 
 }
 
 export async function deleteRunObjects(storedKeys) {
-  let failure = null;
-  for (const key of storedKeys) {
-    try {
-      await getClient().send(new DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key }));
-    } catch (error) {
-      failure ??= error;
-    }
-  }
-  if (failure) throw failure;
+  await mapPool(storedKeys, UPLOAD_CONCURRENCY, async (key) => {
+    await getClient().send(new DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+  });
 }
 
 function contentDisposition(filename) {
