@@ -17,76 +17,138 @@
       <span class="admin-mark"><i></i><i></i><i></i><i></i></span>
       <span><b>SiberSlice</b><small>ADMIN</small></span>
     </a>
-    <nav class="top-links" aria-label="Navigasi admin">
-      <a href="/">Landing <span>↗</span></a>
-      <a href="/asset-generator.html">Studio <span>↗</span></a>
-      <button class="logout-button" id="logoutAdmin" type="button" hidden>Keluar</button>
+    <nav class="admin-tabs" id="adminTabs" hidden aria-label="Bagian panel">
+      <button type="button" class="admin-tab is-active" data-tab="dashboard">Dashboard</button>
+      <button type="button" class="admin-tab" data-tab="sessions">Sesi</button>
+      <button type="button" class="admin-tab" data-tab="logs">Log</button>
+      <button type="button" class="admin-tab" data-tab="system">Sistem</button>
     </nav>
+    <div class="top-actions">
+      <button class="icon-button" id="refreshAll" type="button" title="Muat ulang data" aria-label="Muat ulang data">↻</button>
+      <a class="top-link" href="/asset-generator.html" title="Buka Studio">Studio ↗</a>
+      <button class="logout-button" id="logoutAdmin" type="button" hidden>Keluar</button>
+    </div>
   </header>
 
   <main class="admin-page">
-    <section class="page-heading">
-      <div>
-        <p class="eyebrow"><i></i> DATA CONTROL / LOCAL WORKSPACE</p>
-        <h1>Admin <em>panel.</em></h1>
-        <p class="intro">Kelola sesi generate, periksa detail run dan aset, serta cek kesiapan Python untuk proses slicing.</p>
+    <!-- DASHBOARD -->
+    <section class="tab-panel is-active" id="panel-dashboard" aria-label="Dashboard">
+      <div class="stat-grid" id="dashStats"></div>
+      <div class="dash-columns">
+        <article class="panel-card activity-card">
+          <h3>Aktivitas 14 hari <small>run selesai per hari</small></h3>
+          <div class="activity-chart" id="activityChart" role="img" aria-label="Grafik aktivitas 14 hari"></div>
+        </article>
+        <article class="panel-card recent-card">
+          <h3>Run terbaru <small>8 terakhir</small></h3>
+          <div class="recent-list" id="recentRuns"><p class="list-status">Memuat…</p></div>
+        </article>
       </div>
-      <button class="refresh-button" id="refreshAll" type="button"><span aria-hidden="true">↻</span> Refresh data</button>
     </section>
 
-    <aside class="access-note" role="note">
-      <span class="note-mark">!</span>
-      <p><b>Panel ini dilindungi password admin.</b> Sesi login berlaku selama 8 jam di browser ini.</p>
-    </aside>
-
-    <section class="system-grid" aria-label="Status lingkungan">
-      <article class="system-card python-card" id="pythonCard" aria-live="polite">
-        <div class="card-topline"><span>RUNTIME CHECK</span><button class="text-button" id="checkPython" type="button">Cek ulang</button></div>
-        <div class="runtime-heading"><span class="status-icon pending" id="pythonIcon">…</span><div><h2>Python slicing</h2><p id="pythonSummary">Memeriksa interpreter dan paket…</p></div></div>
-        <div class="runtime-facts" id="pythonFacts"></div>
-        <p class="install-hint" id="pythonInstall" hidden>Pasang paket yang dibutuhkan dengan <code>python3 -m pip install Pillow numpy</code>, lalu cek ulang.</p>
-      </article>
-      <article class="system-card error-card">
-        <div class="card-topline"><span>SERVER LOG</span><button class="text-button" id="loadServerErrors" type="button">Muat log</button></div>
-        <div class="runtime-heading"><span class="status-icon neutral" aria-hidden="true">≡</span><div><h2>Error server</h2><p id="serverErrorSummary">Belum dimuat.</p></div></div>
-        <pre class="server-errors" id="serverErrors" hidden></pre>
-      </article>
-    </section>
-
-    <section class="workspace" aria-label="Pengelolaan sesi">
-      <aside class="session-column">
-        <div class="section-head session-head">
-          <div><p class="eyebrow">SESSION ARCHIVE</p><h2>Sesi <span id="sessionTotal">—</span></h2></div>
-          <button class="icon-button" id="refreshSessions" type="button" aria-label="Muat ulang daftar sesi" title="Muat ulang">↻</button>
+    <!-- SESSIONS -->
+    <section class="tab-panel" id="panel-sessions" aria-label="Sesi" hidden>
+      <div class="sessions-toolbar">
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="sessionSearch" type="search" placeholder="Cari nama grup, prompt, atau ID sesi…" autocomplete="off" /></label>
+        <div class="filter-chips" id="statusFilters" role="group" aria-label="Filter status">
+          <button type="button" class="chip is-active" data-filter="all">Semua</button>
+          <button type="button" class="chip" data-filter="complete">Selesai</button>
+          <button type="button" class="chip" data-filter="failed">Gagal</button>
+          <button type="button" class="chip" data-filter="s3">S3</button>
+          <button type="button" class="chip" data-filter="local">Lokal</button>
+          <button type="button" class="chip" data-filter="busy">Aktif</button>
         </div>
-        <label class="search-box"><span aria-hidden="true">⌕</span><input id="sessionSearch" type="search" placeholder="Cari sesi atau prompt…" autocomplete="off" /></label>
-        <p class="list-status" id="listStatus" role="status">Memuat sesi…</p>
-        <div class="session-list" id="sessionList"></div>
-      </aside>
-
-      <section class="detail-column" id="detailColumn" aria-live="polite">
-        <div class="empty-detail" id="emptyDetail">
-          <span class="empty-symbol" aria-hidden="true">▦</span>
-          <p class="eyebrow">SESSION INSPECTOR</p>
-          <h2>Pilih sesi untuk melihat isinya.</h2>
-          <p>Detail run, prompt, sheet, aset PNG, log percakapan, dan event proses akan tampil di sini.</p>
-        </div>
-        <div id="sessionDetail" hidden></div>
-      </section>
+        <select id="sessionSort" class="sort-select" aria-label="Urutkan sesi">
+          <option value="newest">Terbaru diubah</option>
+          <option value="oldest">Terlama diubah</option>
+          <option value="runs">Paling banyak run</option>
+          <option value="assets">Paling banyak aset</option>
+        </select>
+      </div>
+      <div class="sessions-body">
+        <aside class="session-column">
+          <p class="list-status" id="listStatus" role="status">Memuat sesi…</p>
+          <div class="session-list" id="sessionList"></div>
+          <button class="load-more" id="sessionLoadMore" type="button" hidden>Tampilkan lebih banyak</button>
+        </aside>
+        <section class="detail-column" id="detailColumn" aria-live="polite">
+          <div class="empty-detail" id="emptyDetail">
+            <span class="empty-symbol" aria-hidden="true">▦</span>
+            <h2>Pilih sesi di kiri</h2>
+            <p>Run, prompt, gambar hasil, status penyimpanan, dan log AI akan tampil di sini.</p>
+          </div>
+          <div id="sessionDetail" hidden></div>
+        </section>
+      </div>
     </section>
 
-    <footer class="admin-footer"><span>dataSiber Lab</span><span>SIBERSLICE / ADMIN</span></footer>
+    <!-- LOGS -->
+    <section class="tab-panel" id="panel-logs" aria-label="Log" hidden>
+      <div class="logs-toolbar">
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="logSearch" type="search" placeholder="Cari di pesan error…" autocomplete="off" /></label>
+        <select id="logTypeFilter" class="sort-select" aria-label="Filter jenis">
+          <option value="all">Semua jenis</option>
+          <option value="error">Error</option>
+          <option value="warn">Warning</option>
+        </select>
+        <span class="list-status" id="serverErrorSummary">Belum dimuat.</span>
+      </div>
+      <div class="error-list" id="errorList"><p class="list-status">Muat log…</p></div>
+    </section>
+
+    <!-- SYSTEM -->
+    <section class="tab-panel" id="panel-system" aria-label="Sistem" hidden>
+      <div class="system-grid">
+        <article class="panel-card">
+          <h3>Provider AI</h3>
+          <div id="systemProviders" class="system-rows"><p class="list-status">Memuat…</p></div>
+        </article>
+        <article class="panel-card">
+          <h3>Penyimpanan S3</h3>
+          <div id="systemS3" class="system-rows"><p class="list-status">Memuat…</p></div>
+        </article>
+        <article class="panel-card">
+          <h3>Runtime slicing (Python)</h3>
+          <div id="systemPython" class="system-rows"><p class="list-status">Memuat…</p></div>
+        </article>
+        <article class="panel-card">
+          <h3>Aplikasi</h3>
+          <div id="systemApp" class="system-rows"><p class="list-status">Memuat…</p></div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="admin-footer"><span>dataSiber Lab</span><span>SIBERSLICE ADMIN</span></footer>
   </main>
+
+  <!-- Lightbox for images -->
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lightbox-close" id="lightboxClose" type="button" aria-label="Tutup">×</button>
+    <img id="lightboxImage" alt="" />
+    <p class="lightbox-caption" id="lightboxCaption"></p>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="modal-backdrop" id="confirmModal" hidden>
+    <div class="modal-card" role="alertdialog" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+      <h3 id="confirmTitle">Konfirmasi</h3>
+      <p id="confirmBody"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirmCancel" type="button">Batal</button>
+        <button class="btn btn-danger" id="confirmOk" type="button">Ya, lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="adminToast" role="status" aria-live="polite"></div>
+
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="adminLoginForm">
       <a class="admin-brand login-brand" href="/" aria-label="Kembali ke landing SiberSlice">
         <span class="admin-mark"><i></i><i></i><i></i><i></i></span>
         <span><b>SiberSlice</b><small>ADMIN ACCESS</small></span>
       </a>
-      <p class="eyebrow login-eyebrow">PRIVATE WORKSPACE</p>
-      <h1 id="loginTitle">Masuk ke panel<br><em>admin.</em></h1>
-      <p class="login-copy">Masukkan password admin yang tersimpan di konfigurasi server.</p>
+      <p class="login-copy">Masukkan password admin untuk mengelola sesi dan hasil generate.</p>
       <label class="password-label" for="adminPassword">PASSWORD ADMIN</label>
       <input id="adminPassword" name="password" type="password" autocomplete="current-password" required />
       <p class="login-error" id="loginError" role="alert"></p>

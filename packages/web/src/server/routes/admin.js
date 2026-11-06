@@ -187,6 +187,7 @@ function summarizeRuns(session, sessionId) {
     style: run.style ?? null,
     count: Number(run.count) || (Array.isArray(run.assets) ? run.assets.length : 0),
     assetCount: Array.isArray(run.assets) ? run.assets.length : 0,
+    hasS3: Boolean(run.s3),
     detailUrl: `/api/admin/sessions/${sessionId}`,
   }));
 }
@@ -207,21 +208,100 @@ export async function handleAdminSessionList(res) {
     const runs = summarizeRuns(value, entry.name);
     let folderInfo;
     try { folderInfo = await stat(folder); } catch { folderInfo = null; }
+    const completeRuns = runs.filter((run) => run.status === "complete");
+    const newestRun = completeRuns.at(-1) ?? runs.at(-1) ?? null;
     return {
       id: entry.name,
       createdAt: value?.createdAt ?? folderInfo?.birthtime?.toISOString() ?? null,
       updatedAt: value?.updatedAt ?? folderInfo?.mtime?.toISOString() ?? null,
       runCount: runs.length,
-      completeCount: runs.filter((run) => run.status === "complete").length,
+      completeCount: completeRuns.length,
       failedCount: runs.filter((run) => run.status === "failed").length,
       busy: isSessionBusy(entry.name),
       lastPrompt: runs.at(-1)?.prompt ?? "",
+      lastGroupName: runs.at(-1)?.groupName ?? null,
+      totalAssets: completeRuns.reduce((sum, run) => sum + run.assetCount, 0),
+      s3RunCount: runs.filter((run) => run.hasS3).length,
+      thumbnailUrl: newestRun ? `/api/sessions/${entry.name}/files/runs/${newestRun.runId}/sheet.png` : null,
       runs,
       readError,
     };
   }));
   sessions.sort((a, b) => Date.parse(b.updatedAt ?? "") - Date.parse(a.updatedAt ?? ""));
   return sendJson(res, 200, { sessions, total: sessions.length });
+}
+
+async function collectSessionSummaries() {
+  const entries = (await directoryEntries(sessionsDir))
+    .filter((entry) => entry.isDirectory() && sessionIdPattern.test(entry.name));
+  const sessions = [];
+  for (const entry of entries) {
+    let value = null;
+    try { value = JSON.parse(await readFile(join(sessionsDir, entry.name, "session.json"), "utf8")); } catch { /* skip broken */ }
+    sessions.push({ id: entry.name, value, runs: summarizeRuns(value, entry.name), busy: isSessionBusy(entry.name) });
+  }
+  return sessions;
+}
+
+/** Dashboard aggregates: totals, storage split, activity per day, recent runs. */
+export async function handleAdminOverview(res) {
+  const sessions = await collectSessionSummaries();
+  const allRuns = sessions.flatMap((session) => session.runs.map((run) => ({ ...run, sessionId: session.id, groupName: run.groupName ?? session.value?.lastResult?.runId === run.runId ? session.value.lastResult.groupName : null })));
+  const complete = allRuns.filter((run) => run.status === "complete");
+  const failed = allRuns.filter((run) => run.status === "failed");
+  const days = [];
+  const now = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - i);
+    days.push({ date: day.toISOString().slice(0, 10), label: day.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }), runs: 0, assets: 0 });
+  }
+  const dayIndex = new Map(days.map((entry, index) => [entry.date, index]));
+  for (const run of complete) {
+    const key = typeof run.createdAt === "string" ? run.createdAt.slice(0, 10) : "";
+    const index = dayIndex.get(key);
+    if (index !== undefined) { days[index].runs += 1; days[index].assets += run.assetCount; }
+  }
+  const recent = [...allRuns]
+    .sort((a, b) => Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? ""))
+    .slice(0, 8);
+  return sendJson(res, 200, {
+    totals: {
+      sessions: sessions.length,
+      busySessions: sessions.filter((session) => session.busy).length,
+      runs: allRuns.length,
+      complete: complete.length,
+      failed: failed.length,
+      assets: complete.reduce((sum, run) => sum + run.assetCount, 0),
+      s3Runs: allRuns.filter((run) => run.hasS3).length,
+      localRuns: allRuns.filter((run) => !run.hasS3 && run.status === "complete").length,
+    },
+    activity: days,
+    recent,
+  });
+}
+
+/** Environment status card: providers, S3 (no secrets), app settings. */
+export async function handleAdminSystem(res) {
+  const { mainAi, imageGen, imageAnalyze, port, dataDir, galleryPageSize, galleryPreviewCount } = config;
+  return sendJson(res, 200, {
+    providers: [
+      { name: "AI utama", model: mainAi.model || "—", baseUrl: mainAi.baseUrl || "—", ready: Boolean(mainAi.baseUrl && mainAi.apiKey && mainAi.model) },
+      { name: "Image generation", model: imageGen.model || "—", baseUrl: imageGen.baseUrl || "—", ready: Boolean(imageGen.baseUrl && imageGen.apiKey && imageGen.model) },
+      { name: "Image analysis (opsional)", model: imageAnalyze.model || "—", baseUrl: imageAnalyze.baseUrl || "—", ready: Boolean(imageAnalyze.baseUrl && imageAnalyze.apiKey && imageAnalyze.model) },
+    ],
+    s3: {
+      configured: s3Configured(),
+      bucket: config.s3.bucket || null,
+      endpoint: config.s3.endpoint || null,
+      publicBaseUrl: config.s3.publicBaseUrl || null,
+      prefix: config.s3.prefix,
+      purgeLocal: config.s3.purgeLocal,
+      hasCredentials: Boolean(config.s3.accessKey && config.s3.secretKey),
+    },
+    app: { port, dataDir, galleryPageSize, galleryPreviewCount, maxIterations: config.maxIterations },
+  });
 }
 
 export async function handleAdminSessionDetail(res, sessionId) {
@@ -283,6 +363,7 @@ export async function handleAdminSessionDetail(res, sessionId) {
       style: run.style ?? null,
       count: Number(run.count) || assets.length,
       error: run.error ?? null,
+      hasS3: Boolean(manifest),
       sheetUrl: sheetExists ? `/api/sessions/${sessionId}/files/runs/${run.runId}/${sheetName}` : null,
       assets: assets.filter((asset) => asset.url),
       logs: {

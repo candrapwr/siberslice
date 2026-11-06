@@ -13,6 +13,8 @@ import {
   handleAdminServerErrors,
   handleAdminSessionDetail,
   handleAdminSessionList,
+  handleAdminOverview,
+  handleAdminSystem,
   handleDeleteAdminSession,
   handleSessionRestore,
   isAdminAuthenticated,
@@ -35,6 +37,8 @@ export async function routeRequest(req, res) {
   }
 
   if (req.method === "GET" && pathname === "/api/admin/sessions") return handleAdminSessionList(res);
+  if (req.method === "GET" && pathname === "/api/admin/overview") return handleAdminOverview(res);
+  if (req.method === "GET" && pathname === "/api/admin/system") return handleAdminSystem(res);
   if (req.method === "GET" && pathname === "/api/admin/python-check") return handleAdminPythonCheck(res);
   if (req.method === "GET" && pathname === "/api/admin/server-errors") return handleAdminServerErrors(res, url);
 
