@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "start": "node src/server/index.js",
-    "dev": "node --watch src/server/index.js"
+    "dev": "node --watch src/server/index.js",
+    "migrate:s3": "node src/scripts/migrate-s3.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1163.0",
+    "@aws-sdk/s3-request-presigner": "^3.1163.0",
     "@siberslice/core": "0.1.0"
   }
 }

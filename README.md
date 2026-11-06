@@ -143,6 +143,14 @@ Setiap provider memiliki base URL, API key, dan nama model sendiri. Base URL umu
 | `SIBERSLICE_DATA_DIR` | Folder data sesi; default `./data`. |
 | `SIBERSLICE_MAX_ITERATIONS` | Batas iterasi agent AI utama per proses generate; bilangan bulat positif, default `50`. |
 | `SIBERSLICE_ADMIN_PASSWORD` | Password bersama untuk masuk ke `/admin`; wajib diisi agar endpoint admin aktif. |
+| `SIBERSLICE_S3_BUCKET` | Bucket S3-compatible untuk menyimpan hasil generate. Kosong = penyimpanan lokal saja. |
+| `SIBERSLICE_S3_ACCESS_KEY` / `SIBERSLICE_S3_SECRET_KEY` | Kredensial bucket. Keduanya wajib bersama bucket agar mode S3 aktif. |
+| `SIBERSLICE_S3_REGION` | Region S3; default `us-east-1` (MinIO/R2 sering menerima nilai ini). |
+| `SIBERSLICE_S3_ENDPOINT` | Endpoint khusus untuk MinIO/R2/Wasabi/B2. Kosong = AWS S3 asli. |
+| `SIBERSLICE_S3_FORCE_PATH_STYLE` | `true` (default) untuk MinIO/self-hosted; `false` untuk AWS S3/R2 virtual-host style. |
+| `SIBERSLICE_S3_PREFIX` | Prefiks key objek di bucket; default `runs`. |
+| `SIBERSLICE_S3_PURGE_LOCAL` | `true` = file lokal dihapus setelah upload sukses; default `false` (file lokal tetap disimpan). |
+| `SIBERSLICE_S3_PRESIGN_TTL` | Umur presigned URL dalam detik; default `900`. |
 
 Contoh `.env.example`:
 
@@ -170,9 +178,28 @@ SIBERSLICE_PORT=8200
 SIBERSLICE_DATA_DIR=./data
 SIBERSLICE_MAX_ITERATIONS=50
 SIBERSLICE_ADMIN_PASSWORD=
+
+# Opsional: simpan hasil generate di penyimpanan S3-compatible.
+SIBERSLICE_S3_BUCKET=
+SIBERSLICE_S3_ACCESS_KEY=
+SIBERSLICE_S3_SECRET_KEY=
+SIBERSLICE_S3_REGION=us-east-1
+SIBERSLICE_S3_ENDPOINT=
+SIBERSLICE_S3_FORCE_PATH_STYLE=true
+SIBERSLICE_S3_PREFIX=runs
+SIBERSLICE_S3_PURGE_LOCAL=false
+SIBERSLICE_S3_PRESIGN_TTL=900
 ```
 
 Atur password admin yang unik di `.env`; jangan gunakan nilai contoh atau commit password ke Git. Kamu bisa membuat password acak dengan `openssl rand -base64 32`.
+
+#### Penyimpanan S3 (MinIO, Cloudflare R2, Wasabi, Backblaze, AWS S3)
+
+Jika `SIBERSLICE_S3_BUCKET`, `SIBERSLICE_S3_ACCESS_KEY`, dan `SIBERSLICE_S3_SECRET_KEY` terisi, setiap run yang selesai otomatis diunggah ke bucket (`<prefix>/<sessionId>/<runId>/...`). Frontend tetap memakai URL `/api/sessions/...` yang sama; server hanya me-redirect ke presigned URL S3, sehingga trafik gambar/ZIP besar mengalir langsung dari S3, bukan dari server Node.
+
+- Run yang dibuat sebelum mode S3 aktif tidak memiliki objek di bucket. Saat filenya diminta, server membalas error jelas: *"Run ini dibuat sebelum penyimpanan S3 aktif..."* — solusinya generate ulang atau jalankan migrasi.
+- Migrasi run lama ke bucket: `npm run migrate:s3 --workspace @siberslice/web` (tambahkan `-- --purge-local` untuk menghapus file lokal setelah upload sukses).
+- `SIBERSLICE_S3_PURGE_LOCAL=true` menghapus sheet/aset/ZIP lokal setiap habis upload; log di `logs/` selalu tetap di disk.
 
 #### Kebutuhan kompatibilitas API
 

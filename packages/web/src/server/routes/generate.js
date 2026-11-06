@@ -1,13 +1,14 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { runAgent } from "@siberslice/core/agent";
 import { requireProvider } from "@siberslice/core/providers";
-import { config } from "../../config/env.js";
+import { config, s3Configured } from "../../config/env.js";
 import { readJsonBody, sendError, sendEvent } from "../http.js";
 import { claimSession, isSessionBusy, readSession, releaseSession, writeSession, sessionIdPattern } from "../session-store.js";
 import { createRunRecorder } from "../run-recorder.js";
 import { recordServerError } from "../server-log.js";
+import { runKeyPrefix, uploadRun } from "../s3-store.js";
 
 function validateGeneration(body) {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -101,6 +102,31 @@ export async function handleGenerate(req, res, id) {
       },
     });
     const base = `/api/sessions/${id}`;
+    const sheetPath = result.crop.sheetPreviewPath || "sheet.png";
+    const deliverables = [
+      ...new Set(["sheet.png", "sheet-transparent.png", "assets.zip", sheetPath]),
+      ...result.crop.assets.map((asset) => `assets/${asset.name}`),
+    ];
+
+    let s3Manifest = null;
+    if (s3Configured()) {
+      try {
+        s3Manifest = await uploadRun({ sessionId: id, runId, runDir, files: deliverables });
+        s3Manifest.prefix = runKeyPrefix(id, runId);
+        if (config.s3.purgeLocal) {
+          await Promise.all([
+            rm(join(runDir, "sheet.png"), { force: true }),
+            rm(join(runDir, "sheet-transparent.png"), { force: true }),
+            rm(join(runDir, "assets.zip"), { force: true }),
+            rm(join(runDir, "assets"), { recursive: true, force: true }),
+          ]);
+        }
+      } catch (uploadError) {
+        const detail = uploadError instanceof Error ? uploadError.message : String(uploadError);
+        throw new Error(`Hasil generate gagal diunggah ke S3: ${detail}`);
+      }
+    }
+
     const output = {
       sessionId: id,
       runId,
@@ -113,7 +139,8 @@ export async function handleGenerate(req, res, id) {
       layout: result.layout,
       width: result.image.width,
       height: result.image.height,
-      sheetUrl: `${base}/files/runs/${runId}/${result.crop.sheetPreviewPath || "sheet.png"}`,
+      storage: s3Manifest ? "s3" : "local",
+      sheetUrl: `${base}/files/runs/${runId}/${sheetPath}`,
       exportUrl: `${base}/runs/${runId}/export`,
       assets: result.crop.assets.map((asset) => ({
         index: asset.index,
@@ -134,6 +161,7 @@ export async function handleGenerate(req, res, id) {
       theme: input.theme,
       style: input.style,
       count: input.count,
+      ...(s3Manifest ? { s3: s3Manifest } : {}),
       assets: output.assets.map(({ index, name, label, width, height }) => ({ index, name, label, width, height })),
     });
     session.value.lastResult = output;

@@ -2,8 +2,10 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { runPython } from "@siberslice/core/tools/python-runner";
-import { config } from "../../config/env.js";
+import { config, s3Configured } from "../../config/env.js";
 import { readJsonBody, sendError, sendJson } from "../http.js";
+import { recordServerError } from "../server-log.js";
+import { deleteRunObjects } from "../s3-store.js";
 import {
   beginSessionDeletion,
   endSessionDeletion,
@@ -331,6 +333,19 @@ export async function handleDeleteAdminSession(res, sessionId) {
       throw error;
     }
     if (!info.isDirectory()) return sendError(res, 404, "Session tidak ditemukan.");
+    if (s3Configured()) {
+      try {
+        const session = await readSession(sessionId);
+        const keys = (Array.isArray(session?.value.runs) ? session.value.runs : [])
+          .flatMap((run) => Object.values(run?.s3 ?? {}))
+          .map((entry) => entry?.key)
+          .filter(Boolean);
+        await deleteRunObjects(keys);
+      } catch (error) {
+        // S3 cleanup failure must not block deleting the local session; keep it visible in server logs.
+        await recordServerError({ level: "warn", type: "s3_delete_failed", sessionId, message: error instanceof Error ? error.message : String(error) });
+      }
+    }
     await rm(sessionPath(sessionId), { recursive: true });
     return sendJson(res, 200, { deleted: true, id: sessionId });
   } finally {

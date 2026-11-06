@@ -47,6 +47,29 @@ function optionalPositiveIntegerFromEnv(name) {
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
+function booleanFromEnv(name, fallback) {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (raw === undefined || raw === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(raw);
+}
+
+function readS3Config() {
+  const bucket = (process.env.SIBERSLICE_S3_BUCKET ?? "").trim();
+  const accessKey = (process.env.SIBERSLICE_S3_ACCESS_KEY ?? "").trim();
+  const secretKey = (process.env.SIBERSLICE_S3_SECRET_KEY ?? "").trim();
+  return {
+    bucket,
+    accessKey,
+    secretKey,
+    region: (process.env.SIBERSLICE_S3_REGION ?? "us-east-1").trim(),
+    endpoint: (process.env.SIBERSLICE_S3_ENDPOINT ?? "").trim().replace(/\/+$/, ""),
+    forcePathStyle: booleanFromEnv("SIBERSLICE_S3_FORCE_PATH_STYLE", true),
+    prefix: (process.env.SIBERSLICE_S3_PREFIX ?? "runs").trim().replace(/^\/+|\/+$/g, "") || "runs",
+    purgeLocal: booleanFromEnv("SIBERSLICE_S3_PURGE_LOCAL", false),
+    presignTtlSeconds: optionalPositiveIntegerFromEnv("SIBERSLICE_S3_PRESIGN_TTL") ?? 900,
+  };
+}
+
 function reasoningEffortFromEnv(name) {
   const value = (process.env[name] ?? "none").trim().toLowerCase();
   return ["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value) ? value : "none";
@@ -63,7 +86,13 @@ export const config = {
   mainAi: readProvider("SIBERSLICE_MAIN_AI"),
   imageGen: readProvider("SIBERSLICE_IMAGE_GEN"),
   imageAnalyze: readProvider("SIBERSLICE_IMAGE_ANALYZE"),
+  s3: readS3Config(),
 };
+
+export function s3Configured() {
+  const s3 = config.s3;
+  return Boolean(s3.bucket && s3.accessKey && s3.secretKey);
+}
 
 export function providerStatus(provider) {
   return Boolean(provider.baseUrl && provider.apiKey && provider.model);

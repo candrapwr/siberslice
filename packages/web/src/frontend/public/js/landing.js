@@ -228,7 +228,7 @@ function renderCells(){
     image.src = asset.url;
     image.alt = name;
     const download = document.getElementById('galleryAssetPreviewDownload');
-    download.href = asset.url;
+    download.href = `${asset.url}?download=1`;
     download.download = asset.name;
     previewOverlay.classList.add('open');
     previewOverlay.setAttribute('aria-hidden', 'false');

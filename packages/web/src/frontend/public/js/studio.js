@@ -121,7 +121,7 @@ function openAssetPreview(asset, result, trigger) {
   image.src = `${asset.url}?v=${encodeURIComponent(result.runId)}`;
   image.alt = name;
   const download = byId("assetPreviewDownload");
-  download.href = asset.url;
+  download.href = `${asset.url}?download=1`;
   download.download = asset.name;
   assetPreviewOverlay.classList.add("open");
   assetPreviewOverlay.setAttribute("aria-hidden", "false");
@@ -368,7 +368,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 byId("dlSheet").onclick = () => {
   if (!currentResult) return;
   const link = document.createElement("a");
-  link.href = currentResult.sheetUrl;
+  link.href = `${currentResult.sheetUrl}?download=1`;
   link.download = "sprite-sheet.png";
   link.click();
 };

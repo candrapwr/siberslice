@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { config } from "../../config/env.js";
+import { config, s3Configured } from "../../config/env.js";
 import { sendJson } from "../http.js";
 import { sessionIdPattern } from "../session-store.js";
 
@@ -35,17 +35,24 @@ function legacyGroupName(run, session) {
 async function groupFromRun(sessionId, sessionFolder, session, run) {
   if (!run || run.status === "failed" || !sessionIdPattern.test(run.runId ?? "")) return null;
   const runFolder = join(sessionFolder, "runs", run.runId);
-  const transparentSheetPath = join(runFolder, "sheet-transparent.png");
-  const sheetName = await isFile(transparentSheetPath) ? "sheet-transparent.png" : "sheet.png";
-  const sheetPath = join(runFolder, sheetName);
-  const assetsFolder = join(runFolder, "assets");
-  if (!(await isFile(sheetPath))) return null;
+  const remote = s3Configured() && run.s3 ? run.s3 : null;
+  let sheetName;
+  if (remote) {
+    sheetName = remote["sheet-transparent.png"] ? "sheet-transparent.png" : "sheet.png";
+    if (!remote[sheetName]) return null;
+  } else {
+    const transparentSheetPath = join(runFolder, "sheet-transparent.png");
+    sheetName = await isFile(transparentSheetPath) ? "sheet-transparent.png" : "sheet.png";
+    if (!(await isFile(join(runFolder, sheetName)))) return null;
+  }
 
   let assets = Array.isArray(run.assets) ? run.assets : [];
   if (assets.length === 0) {
-    const names = (await directoryEntries(assetsFolder))
-      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".png"))
-      .map((entry) => entry.name);
+    const names = remote
+      ? Object.keys(remote).filter((key) => key.startsWith("assets/")).map((key) => key.slice("assets/".length))
+      : (await directoryEntries(join(runFolder, "assets")))
+          .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".png"))
+          .map((entry) => entry.name);
     const previousResult = session.lastResult?.runId === run.runId ? session.lastResult : null;
     assets = names.map((name, index) => {
       const previous = previousResult?.assets?.find((asset) => asset.name === name);

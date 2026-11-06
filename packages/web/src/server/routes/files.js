@@ -1,8 +1,10 @@
 import { readFile, stat } from "node:fs/promises";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { config, s3Configured } from "../../config/env.js";
 import { sendError } from "../http.js";
 import { readSession, sessionIdPattern } from "../session-store.js";
+import { headObject, presignDownload } from "../s3-store.js";
 
 const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../frontend/public");
 const localAssetReferencePattern = /((?:href|src)=["'])(\/(?:css|js)\/[^"'?#]+)(?:\?[^"']*)?(["'])/gi;
@@ -89,9 +91,43 @@ async function serveFile(res, folder, requestedPath, download = false, downloadN
   }
 }
 
+function runEntry(session, runId) {
+  return Array.isArray(session.value.runs) ? session.value.runs.find((entry) => entry?.runId === runId) ?? null : null;
+}
+
+function s3KeyForRun(session, runId, relativePath) {
+  const run = runEntry(session, runId);
+  if (!run?.s3) return null;
+  const manifestKey = relativePath.split(/[\\/]+/).filter(Boolean).join("/");
+  if (run.s3[manifestKey]?.key) return run.s3[manifestKey].key;
+  if (!run.s3.prefix) return null;
+  return `${run.s3.prefix}/${manifestKey}`;
+}
+
+async function redirectPresigned(res, storedKey, downloadName) {
+  const url = await presignDownload(storedKey, downloadName ? { filename: downloadName } : {});
+  res.writeHead(302, { location: url, "cache-control": "no-store" });
+  res.end();
+}
+
 export async function handleSessionFile(res, sessionId, filePath, download = false) {
   const session = await readSession(sessionId);
   if (!session) return sendError(res, 404, "Session tidak ditemukan.");
+  const match = filePath.match(/^runs\/([0-9a-fA-F-]{36})\/(.+)$/);
+  if (match && sessionIdPattern.test(match[1]) && s3Configured()) {
+    const [, runId] = match;
+    try {
+      const relative = decodeURIComponent(match[2]).split(/[\\/]+/).filter(Boolean).join("/");
+      const storedKey = s3KeyForRun(session, runId, relative);
+      if (!storedKey) return sendError(res, 409, "Run ini dibuat sebelum penyimpanan S3 aktif, jadi filenya tidak tersedia di cloud. Generate ulang aset ini untuk memakai S3.");
+      const info = await headObject(storedKey);
+      if (!info.exists) return sendError(res, 404, "File tidak ditemukan di S3 (mungkin sudah dihapus dari bucket).");
+      return await redirectPresigned(res, storedKey, download ? relative.split("/").at(-1) : null);
+    } catch (error) {
+      if (error?.code === "URIError") return sendError(res, 400, "Path file tidak valid.");
+      throw error;
+    }
+  }
   return serveFile(res, session.folder, filePath, download);
 }
 
@@ -100,11 +136,18 @@ export async function handleExport(res, sessionId, runId) {
   if (!sessionIdPattern.test(runId)) return sendError(res, 400, "Run ID tidak valid.");
   const session = await readSession(sessionId);
   if (!session) return sendError(res, 404, "Session tidak ditemukan.");
-  const run = session.value.runs?.find((entry) => entry.runId === runId);
+  const run = runEntry(session, runId);
   const lastResult = session.value.lastResult?.runId === runId ? session.value.lastResult : null;
   const legacyName = typeof run?.prompt === "string" ? run.prompt.split(/[.!?\n]/, 1)[0].trim().slice(0, 64) : "";
   const groupName = run?.groupName || lastResult?.groupName || legacyName || "Kumpulan Aset";
-  const downloadName = groupName ? `${groupName}.zip` : "assets.zip";
+  const downloadName = `${groupName}.zip`;
+  if (s3Configured()) {
+    const storedKey = s3KeyForRun(session, runId, "assets.zip");
+    if (!storedKey) return sendError(res, 409, "Run ini dibuat sebelum penyimpanan S3 aktif, jadi export-nya belum tersedia di cloud. Generate ulang aset ini untuk memakai S3.");
+    const info = await headObject(storedKey);
+    if (!info.exists) return sendError(res, 404, "File tidak ditemukan di S3 (mungkin sudah dihapus dari bucket).");
+    return redirectPresigned(res, storedKey, downloadName);
+  }
   return serveFile(res, session.folder, `runs/${runId}/assets.zip`, true, downloadName);
 }
 
