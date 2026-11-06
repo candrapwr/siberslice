@@ -61,6 +61,12 @@
   .side-scroll{padding:18px 18px 18px;display:flex;flex-direction:column;gap:16px}
   .grp{border:1px solid var(--border);background:var(--bg)}
   .grp-head{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--border)}
+  .grp-body[hidden]{display:none!important}
+  .toggle-head{width:100%;color:inherit;border:0;border-bottom:1px solid var(--border);background:transparent;text-align:left;cursor:pointer;transition:background .14s}
+  .toggle-head:hover{background:var(--surface-2)}
+  .toggle-head:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}
+  .toggle-icon{margin-left:auto;color:var(--muted);font:400 16px/1 var(--mono);transition:transform .14s,color .14s}
+  .toggle-head[aria-expanded="true"] .toggle-icon{color:var(--accent);transform:rotate(45deg)}
   .grp-head .gn{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);background:rgba(255,91,52,.12);border:1px solid rgba(255,91,52,.3);width:20px;height:20px;display:grid;place-items:center}
   .grp-head .gt{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
   .grp-body{padding:14px 13px}

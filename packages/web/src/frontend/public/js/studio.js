@@ -33,6 +33,14 @@ for (const [id, name] of Object.entries(themeNames)) {
   byId("themes").append(option);
 }
 
+const themeToggle = byId("themeToggle");
+const themeSettings = byId("themeSettings");
+themeToggle.addEventListener("click", () => {
+  const expanded = themeToggle.getAttribute("aria-expanded") === "true";
+  themeToggle.setAttribute("aria-expanded", String(!expanded));
+  themeSettings.hidden = expanded;
+});
+
 function setCount(value) {
   const evenValue = Math.round((Number(value) || 4) / 2) * 2;
   const count = Math.max(4, Math.min(50, evenValue));

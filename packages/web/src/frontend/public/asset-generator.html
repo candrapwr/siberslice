@@ -60,8 +60,10 @@
 
         <!-- THEME -->
         <div class="grp">
-          <div class="grp-head"><span class="gn">2</span><span class="gt">Tema &amp; Gaya</span></div>
-          <div class="grp-body">
+          <button class="grp-head toggle-head" id="themeToggle" type="button" aria-expanded="false" aria-controls="themeSettings">
+            <span class="gn">2</span><span class="gt">Tema &amp; Gaya</span><span class="toggle-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="grp-body" id="themeSettings" hidden>
             <div class="mini-lab">Tema</div>
             <div class="sel"><select id="themes"></select></div>
             <div class="mini-lab" style="margin-top:12px">Gaya</div>
