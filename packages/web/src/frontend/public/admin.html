@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c0d11" />
+  <title>SiberSlice — Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/siberslice-mark.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/admin.css" />
+</head>
+<body>
+  <header class="admin-topbar">
+    <a class="admin-brand" href="/" aria-label="SiberSlice landing page">
+      <span class="admin-mark"><i></i><i></i><i></i><i></i></span>
+      <span><b>SiberSlice</b><small>ADMIN</small></span>
+    </a>
+    <nav class="top-links" aria-label="Navigasi admin">
+      <a href="/">Landing <span>↗</span></a>
+      <a href="/asset-generator.html">Studio <span>↗</span></a>
+      <button class="logout-button" id="logoutAdmin" type="button" hidden>Keluar</button>
+    </nav>
+  </header>
+
+  <main class="admin-page">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow"><i></i> DATA CONTROL / LOCAL WORKSPACE</p>
+        <h1>Admin <em>panel.</em></h1>
+        <p class="intro">Kelola sesi generate, periksa detail run dan aset, serta cek kesiapan Python untuk proses slicing.</p>
+      </div>
+      <button class="refresh-button" id="refreshAll" type="button"><span aria-hidden="true">↻</span> Refresh data</button>
+    </section>
+
+    <aside class="access-note" role="note">
+      <span class="note-mark">!</span>
+      <p><b>Panel ini dilindungi password admin.</b> Sesi login berlaku selama 8 jam di browser ini.</p>
+    </aside>
+
+    <section class="system-grid" aria-label="Status lingkungan">
+      <article class="system-card python-card" id="pythonCard" aria-live="polite">
+        <div class="card-topline"><span>RUNTIME CHECK</span><button class="text-button" id="checkPython" type="button">Cek ulang</button></div>
+        <div class="runtime-heading"><span class="status-icon pending" id="pythonIcon">…</span><div><h2>Python slicing</h2><p id="pythonSummary">Memeriksa interpreter dan paket…</p></div></div>
+        <div class="runtime-facts" id="pythonFacts"></div>
+        <p class="install-hint" id="pythonInstall" hidden>Pasang paket yang dibutuhkan dengan <code>python3 -m pip install Pillow numpy</code>, lalu cek ulang.</p>
+      </article>
+      <article class="system-card error-card">
+        <div class="card-topline"><span>SERVER LOG</span><button class="text-button" id="loadServerErrors" type="button">Muat log</button></div>
+        <div class="runtime-heading"><span class="status-icon neutral" aria-hidden="true">≡</span><div><h2>Error server</h2><p id="serverErrorSummary">Belum dimuat.</p></div></div>
+        <pre class="server-errors" id="serverErrors" hidden></pre>
+      </article>
+    </section>
+
+    <section class="workspace" aria-label="Pengelolaan sesi">
+      <aside class="session-column">
+        <div class="section-head session-head">
+          <div><p class="eyebrow">SESSION ARCHIVE</p><h2>Sesi <span id="sessionTotal">—</span></h2></div>
+          <button class="icon-button" id="refreshSessions" type="button" aria-label="Muat ulang daftar sesi" title="Muat ulang">↻</button>
+        </div>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="sessionSearch" type="search" placeholder="Cari sesi atau prompt…" autocomplete="off" /></label>
+        <p class="list-status" id="listStatus" role="status">Memuat sesi…</p>
+        <div class="session-list" id="sessionList"></div>
+      </aside>
+
+      <section class="detail-column" id="detailColumn" aria-live="polite">
+        <div class="empty-detail" id="emptyDetail">
+          <span class="empty-symbol" aria-hidden="true">▦</span>
+          <p class="eyebrow">SESSION INSPECTOR</p>
+          <h2>Pilih sesi untuk melihat isinya.</h2>
+          <p>Detail run, prompt, sheet, aset PNG, log percakapan, dan event proses akan tampil di sini.</p>
+        </div>
+        <div id="sessionDetail" hidden></div>
+      </section>
+    </section>
+
+    <footer class="admin-footer"><span>dataSiber Lab</span><span>SIBERSLICE / ADMIN</span></footer>
+  </main>
+  <div class="toast" id="adminToast" role="status" aria-live="polite"></div>
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <form class="login-card" id="adminLoginForm">
+      <a class="admin-brand login-brand" href="/" aria-label="Kembali ke landing SiberSlice">
+        <span class="admin-mark"><i></i><i></i><i></i><i></i></span>
+        <span><b>SiberSlice</b><small>ADMIN ACCESS</small></span>
+      </a>
+      <p class="eyebrow login-eyebrow">PRIVATE WORKSPACE</p>
+      <h1 id="loginTitle">Masuk ke panel<br><em>admin.</em></h1>
+      <p class="login-copy">Masukkan password admin yang tersimpan di konfigurasi server.</p>
+      <label class="password-label" for="adminPassword">PASSWORD ADMIN</label>
+      <input id="adminPassword" name="password" type="password" autocomplete="current-password" required />
+      <p class="login-error" id="loginError" role="alert"></p>
+      <button class="login-submit" id="loginSubmit" type="submit">Masuk <span>↗</span></button>
+      <a class="login-home" href="/">← Kembali ke landing</a>
+    </form>
+  </section>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

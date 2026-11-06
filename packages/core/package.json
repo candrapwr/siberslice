@@ -1,0 +1,13 @@
+{
+  "name": "@siberslice/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./agent": "./src/agent/agent.js",
+    "./providers": "./src/providers/compatibility.js",
+    "./tools/image": "./src/tools/image/index.js",
+    "./tools/exec": "./src/tools/cli/exec.js",
+    "./tools/python-runner": "./src/tools/python-runner.js"
+  }
+}

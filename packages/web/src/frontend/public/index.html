@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SiberSlice — AI Asset Generator</title>
+<meta name="description" content="Buat satu sprite sheet dari satu prompt, lalu unduh aset PNG transparan yang sudah terpotong." />
+<link rel="icon" type="image/svg+xml" href="/assets/siberslice-mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/landing.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="SiberSlice, beranda">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="brand-copy"><b>SiberSlice</b><small>ASSET ENGINE</small></span>
+    </a>
+    <nav class="nav-links" aria-label="Navigasi utama">
+      <a href="#gallery">Galeri</a>
+      <a href="#hasil">Hasil</a>
+      <a href="#cara">Cara kerja</a>
+    </nav>
+    <div class="nav-actions">
+      <span class="system-status"><i></i> ASSET SYSTEM READY</span>
+      <button class="nav-lab" id="openLab" type="button"><i></i><span>dataSiber Lab</span></button>
+      <a class="nav-launch" href="asset-generator.html">Buka Studio <span aria-hidden="true">↗</span></a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-heading">
+        <div>
+          <p class="section-label"><span>01</span> AI sprite &amp; asset generator</p>
+          <h1>Buat satu sheet.<br><em>Ambil semua asetnya.</em></h1>
+        </div>
+        <div class="hero-intro">
+          <p>Masukkan satu prompt. SiberSlice memeriksa sprite sheet, mengukur area tiap aset dari gambar asli, lalu menyiapkan file PNG terpisah.</p>
+          <a class="primary-action" href="asset-generator.html">Mulai membuat aset <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+
+      <div class="studio-preview" aria-label="Pratinjau studio SiberSlice">
+        <div class="preview-topbar">
+          <div class="preview-project"><span class="mini-mark"><i></i><i></i><i></i><i></i></span><span>STUDIO / <b>untitled-sheet</b></span></div>
+          <div class="preview-run"><i></i> SESSION ACTIVE</div>
+          <span class="preview-id">RUN_00A12</span>
+        </div>
+        <div class="preview-layout">
+          <aside class="control-panel">
+            <div class="panel-head"><span>01</span><b>Prompt</b></div>
+            <div class="prompt-preview">Set perlengkapan petualang fantasi: pedang, perisai, ramuan, koin, peta, dan item kecil lain dalam gaya pixel art.</div>
+            <div class="quick-row"><span>FANTASY</span><span>PIXEL</span></div>
+
+            <div class="panel-head setting-head"><span>02</span><b>Pengaturan</b></div>
+            <div class="setting-row"><span>Tema</span><b>Fantasy <i>⌄</i></b></div>
+            <div class="setting-row"><span>Gaya</span><b>Pixel Art <i>⌄</i></b></div>
+            <div class="count-preview"><span>Jumlah aset</span><b>12</b><small>SUSUNAN FLEKSIBEL</small></div>
+            <div class="count-scale"><i></i><i></i><i></i><i class="active"></i><i></i><i></i><i></i></div>
+            <div class="preview-generate"><span>✦</span> Generate</div>
+          </aside>
+
+          <div class="preview-workspace">
+            <div class="workspace-tabs">
+              <span class="on">Sprite sheet <b>12</b></span>
+              <span>Assets <b>12</b></span>
+              <small>12 ASET</small>
+            </div>
+            <div class="sheet-zone">
+              <div class="sheet-zone-head"><span>RENDER OUTPUT / TRANSPARENT PNG</span><span>1024 × 768</span></div>
+              <div class="sheet-board">
+                <canvas id="pvCanvas" width="272" height="204" aria-label="Pratinjau sprite sheet berisi 12 aset"></canvas>
+                <span class="cut-tag cut-one">CUT 01</span>
+                <span class="cut-tag cut-two">CUT 12</span>
+              </div>
+              <div class="sheet-legend"><span><i class="legend-dash"></i> BATAS AUTO-CROP</span><span><i class="legend-square"></i> 1 OBJEK = 1 ASET</span></div>
+            </div>
+            <div class="asset-dock">
+              <div class="asset-dock-head"><span>ASSETS READY</span><span>12 PNG</span></div>
+              <div class="asset-thumbs" id="pvCells" aria-label="Contoh aset individual hasil crop"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-foot">
+        <div><b>04—50</b><span>aset genap per proses</span></div>
+        <div><b>01</b><span>prompt untuk satu set</span></div>
+        <div><b>PNG</b><span>latar transparan</span></div>
+        <p>Gambar satu sheet, ekspor banyak aset.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery-section" id="gallery">
+    <div class="wrap">
+      <div class="gallery-heading">
+        <div>
+          <p class="section-label"><span>02</span> Galeri hasil generate</p>
+          <h2>Set aset dari<br><em>studio komunitas.</em></h2>
+        </div>
+        <div class="gallery-intro">
+          <p>Jelajahi grup aset yang sudah dibuat, buka detailnya, lalu unduh semua PNG dalam satu ZIP.</p>
+          <span class="public-note"><i></i> Hasil dari semua sesi tampil publik</span>
+        </div>
+      </div>
+      <div class="gallery-status" id="galleryStatus" role="status">Memuat galeri…</div>
+      <div class="gallery-grid" id="galleryGrid"></div>
+      <button class="gallery-more" id="galleryMore" type="button" hidden>Lihat hasil lainnya <span>↓</span></button>
+    </div>
+  </section>
+
+  <section class="result-section" id="hasil">
+    <div class="wrap result-layout">
+      <div class="result-copy">
+        <p class="section-label"><span>03</span> Hasil satu proses</p>
+        <h2>Bukan cuma<br>gambar jadi.</h2>
+        <p>Setiap generate menyimpan sheet sumber dan aset yang sudah dipisahkan. Lihat hasilnya di studio, lalu unduh satu file atau seluruh paket sekaligus.</p>
+      </div>
+      <div class="result-manifest">
+        <div class="manifest-top"><span>OUTPUT MANIFEST</span><span>RUN_00A12 / COMPLETE</span></div>
+        <div class="manifest-source">
+          <span class="source-icon">▦</span>
+          <span><b>sprite-sheet.png</b><small>Sheet sumber · 1024 × 768 · alpha</small></span>
+          <em>01</em>
+        </div>
+        <div class="manifest-divider"><span>DIPECAH MENJADI</span><i></i><b>12 FILE</b></div>
+        <div class="manifest-assets">
+          <div><span>01</span><b>asset-01.png</b><small>PNG · TRANSPARENT</small><i>↓</i></div>
+          <div><span>02</span><b>asset-02.png</b><small>PNG · TRANSPARENT</small><i>↓</i></div>
+          <div><span>03</span><b>asset-03.png</b><small>PNG · TRANSPARENT</small><i>↓</i></div>
+          <div><span>…</span><b>asset-12.png</b><small>PNG · TRANSPARENT</small><i>↓</i></div>
+        </div>
+        <div class="manifest-export"><span>assets.zip</span><b>UNDUH SEMUA <i>↗</i></b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="process-section" id="cara">
+    <div class="wrap">
+      <div class="process-heading">
+        <p class="section-label"><span>04</span> Cara kerja engine</p>
+        <p>Empat status yang kamu lihat saat satu set aset sedang disiapkan.</p>
+      </div>
+      <ol class="process-log">
+        <li><span class="log-no">01</span><span class="log-dot"></span><div><b>Kompose</b><small>Prompt, tema, gaya, jumlah</small></div><em>READY</em></li>
+        <li><span class="log-no">02</span><span class="log-dot active"></span><div><b>Render sheet</b><small>Satu gambar berisi semua aset</small></div><em>PROCESS</em></li>
+        <li><span class="log-no">03</span><span class="log-dot"></span><div><b>Analisis batas</b><small>Setiap objek dipetakan dari bentuknya</small></div><em>NEXT</em></li>
+        <li><span class="log-no">04</span><span class="log-dot"></span><div><b>Slice &amp; export</b><small>PNG individual dan ZIP</small></div><em>OUTPUT</em></li>
+      </ol>
+      <p class="process-note">Jumlah tetap genap. Ukuran dan posisi aset mengikuti bentuk objek, dengan jarak yang cukup agar mudah dipisahkan.</p>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <div class="wrap cta-shell">
+      <div>
+        <p class="section-label"><span>05</span> Ready when you are</p>
+        <h2>Set aset berikutnya<br>mulai dari satu kalimat.</h2>
+      </div>
+      <a class="cta-button" href="asset-generator.html"><span>✦</span> Buka SiberSlice <b>→</b></a>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <a class="brand" href="#top" aria-label="Kembali ke atas">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span class="brand-copy"><b>SiberSlice</b><small>ASSET ENGINE</small></span>
+    </a>
+    <span>SPRITE SHEET IN · PNG ASSETS OUT</span>
+    <span>© <span id="yr"></span> SIBERSLICE</span>
+  </div>
+</footer>
+
+<div class="overlay" id="labOverlay" aria-hidden="true">
+  <section class="lab-modal" role="dialog" aria-modal="true" aria-labelledby="labTitle" aria-describedby="labDescription">
+    <div class="modal-head">
+      <div>
+        <p class="section-label"><span>DATASIBER LAB</span> EKOSISTEM DATA SIBER</p>
+        <h2 id="labTitle">Produk dari dataSiber.</h2>
+        <p id="labDescription">Kumpulan produk dan tool yang dibangun oleh dataSiber.</p>
+      </div>
+      <button class="modal-close" id="labClose" type="button" aria-label="Tutup">×</button>
+    </div>
+    <div class="project-list">
+      <a class="project-link" href="https://idsiber.com" target="_blank" rel="noopener">
+        <span class="project-glyph">iD</span>
+        <span class="project-info"><b>Chat AI</b><small>idsiber.com · Ide, riset, dan tugas harian.</small></span>
+        <span class="project-arrow" aria-hidden="true">↗</span>
+      </a>
+      <a class="project-link" href="https://craft.idsiber.com" target="_blank" rel="noopener">
+        <span class="project-glyph">Cf</span>
+        <span class="project-info"><b>UI Generator AI</b><small>craft.idsiber.com · Deskripsikan layout, dapatkan antarmuka.</small></span>
+        <span class="project-arrow" aria-hidden="true">↗</span>
+      </a>
+      <a class="project-link" href="https://scan.idsiber.com" target="_blank" rel="noopener">
+        <span class="project-glyph">Sc</span>
+        <span class="project-info"><b>Security Scanner</b><small>scan.idsiber.com · Pindai sistem dan temukan kerentanan.</small></span>
+        <span class="project-arrow" aria-hidden="true">↗</span>
+      </a>
+      <a class="project-link" href="https://board.datasiber.com/" target="_blank" rel="noopener">
+        <span class="project-glyph">Bd</span>
+        <span class="project-info"><b>Flowchart Builder AI</b><small>board.datasiber.com · Buat diagram proses dari teks.</small></span>
+        <span class="project-arrow" aria-hidden="true">↗</span>
+      </a>
+    </div>
+    <div class="modal-foot">
+      <div class="lab-links">
+        <a href="https://datasiber.com" target="_blank" rel="noopener">datasiber.com ↗</a>
+        <a href="mailto:candrapwr@datasiber.com">candrapwr@datasiber.com</a>
+      </div>
+      <button id="labDismiss" type="button">Tutup</button>
+    </div>
+  </section>
+</div>
+
+<div class="overlay gallery-overlay" id="galleryOverlay" aria-hidden="true">
+  <section class="gallery-modal" role="dialog" aria-modal="true" aria-labelledby="galleryModalTitle">
+    <header class="gallery-modal-head">
+      <div>
+        <p class="section-label"><span>ASSET GROUP</span> HASIL GENERATE</p>
+        <h2 id="galleryModalTitle">Kumpulan Aset</h2>
+        <p id="galleryModalMeta"></p>
+      </div>
+      <button class="modal-close" id="galleryModalClose" type="button" aria-label="Tutup detail aset">×</button>
+    </header>
+    <div class="gallery-modal-body">
+      <div class="gallery-prompt"><span>PROMPT</span><p id="galleryModalPrompt"></p></div>
+      <div class="gallery-assets-head"><span>ASET INDIVIDUAL</span><span id="galleryAssetCount"></span></div>
+      <div class="gallery-modal-assets" id="galleryModalAssets"></div>
+    </div>
+    <footer class="gallery-modal-foot">
+      <span>PNG individual · satu paket ZIP</span>
+      <a class="gallery-download" id="galleryZipLink" href="#" download>Unduh semua ZIP <b>↓</b></a>
+    </footer>
+  </section>
+</div>
+
+<script src="/js/landing.js"></script>
+</body>
+</html>

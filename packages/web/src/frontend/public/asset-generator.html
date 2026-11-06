@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SiberSlice — Asset Generator</title>
+<link rel="icon" type="image/svg+xml" href="/assets/siberslice-mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/studio.css">
+</head>
+<body>
+<div class="app">
+  <!-- TOP -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <a class="home-link" href="/" aria-label="Kembali ke landing page SiberSlice">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0 6 6m-6-6 6-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Landing</span>
+      </a>
+      <div class="brand">
+        <div class="mark"><i></i><i></i><i></i><i></i></div>
+        <div class="brand-txt"><b>SiberSlice</b><span>ASSET&nbsp;ENGINE</span></div>
+      </div>
+      <div class="crumb">Project&nbsp;/&nbsp;<b id="projName">untitled sheet</b></div>
+    </div>
+    <div class="top-actions">
+      <div class="credit"><span class="led" id="configLed"></span> PROVIDERS&nbsp;<b id="configLabel">CHECKING</b></div>
+      <button class="tbtn" id="newSession" type="button">Session baru</button>
+      <button class="tbtn" id="dlSheet" disabled>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 19h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sheet
+      </button>
+      <button class="tbtn" id="dlAll" disabled>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        Export
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="side-scroll">
+        <!-- PROMPT -->
+        <div class="grp">
+          <div class="grp-head"><span class="gn">1</span><span class="gt">Prompt</span></div>
+          <div class="grp-body">
+            <textarea id="prompt" class="prompt" rows="6" placeholder="Contoh: satu set item RPG fantasi dengan warna dan gaya yang konsisten…"></textarea>
+            <div class="prompt-quick" aria-label="Contoh prompt cepat">
+              <span class="quick-label">CONTOH CEPAT</span>
+              <button class="quick-btn" type="button" data-theme="fantasy" data-style="pixel" data-prompt="Set item RPG fantasi berupa pedang, perisai, ramuan kesehatan, koin emas, dan perlengkapan petualang lainnya. Gaya pixel art yang jelas, palet warna konsisten, tiap item mudah dibedakan.">Item RPG</button>
+              <button class="quick-btn" type="button" data-theme="ui" data-style="flat" data-prompt="Set ikon UI untuk aplikasi cuaca: cerah, berawan, hujan, badai, salju, suhu, angin, dan kelembapan. Gaya flat minimal, bentuk sederhana dan mudah dibaca.">Ikon UI</button>
+              <button class="quick-btn" type="button" data-theme="nature" data-style="handdrawn" data-prompt="Set tanaman kecil untuk game cozy: jamur, bunga liar, bibit, semak, pohon mini, dan pot tanaman. Gaya hand-drawn yang hangat dengan palet warna alami.">Tanaman</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- THEME -->
+        <div class="grp">
+          <div class="grp-head"><span class="gn">2</span><span class="gt">Tema &amp; Gaya</span></div>
+          <div class="grp-body">
+            <div class="mini-lab">Tema</div>
+            <div class="sel"><select id="themes"></select></div>
+            <div class="mini-lab" style="margin-top:12px">Gaya</div>
+            <div class="sel"><select id="style">
+              <option value="general" selected>General / Umum</option>
+              <option value="flat">Flat / Minimal</option>
+              <option value="glossy">Glossy</option>
+              <option value="pixel">Pixel Art</option>
+              <option value="neon">Neon</option>
+              <option value="pastel">Pastel</option>
+              <option value="line">Line / Outline</option>
+              <option value="mono">Monochrome</option>
+              <option value="vintage">Vintage</option>
+              <option value="isometric">Isometric</option>
+              <option value="handdrawn">Hand Drawn</option>
+              <option value="lowpoly">Low Poly</option>
+            </select></div>
+          </div>
+        </div>
+
+        <!-- COUNT -->
+        <div class="grp">
+          <div class="grp-head"><span class="gn">3</span><span class="gt">Jumlah Aset</span></div>
+          <div class="grp-body">
+            <div class="count-row">
+              <button id="minus">−</button>
+              <div class="mid"><b id="countNum">12</b><span>ASSETS</span></div>
+              <button id="plus">+</button>
+            </div>
+            <input type="range" id="range" min="4" max="50" step="2" value="12">
+            <div class="mini-lab" style="margin-top:6px"><span>GENAP · SUSUNAN FLEKSIBEL</span><span>4–50</span></div>
+          </div>
+        </div>
+
+      </div>
+      <button class="gen" id="genBtn" disabled>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z" fill="currentColor"/></svg>
+        Generate
+      </button>
+    </aside>
+
+    <!-- WORKSPACE -->
+    <section class="work">
+      <div class="tabs">
+        <button class="tab on" data-view="sheet">Sheet <span class="ct" id="tabSheet"></span></button>
+        <button class="tab" data-view="assets">Assets <span class="ct" id="tabAssets"></span></button>
+        <div class="ws-right">
+          <div class="spec">LAYOUT&nbsp;<b id="mGrid">—</b></div>
+          <div class="spec">SHEET&nbsp;<b id="mDim">—</b></div>
+          <div class="spec">ASSET&nbsp;<b id="mTile">—</b></div>
+        </div>
+      </div>
+
+      <div class="canvas-region">
+        <!-- EMPTY -->
+        <div class="empty" id="emptyState">
+          <div class="empty-inner">
+            <div class="big-mark"><i></i><i></i><i></i><i></i></div>
+            <div class="eb">AI Sprite Engine — v2</div>
+            <h3>Generate satu sprite sheet,<br>ter‑slice otomatis.</h3>
+            <p>Tulis prompt, atur tema &amp; jumlah. AI menyusun satu gambar berisi aset dengan ukuran beragam, mendeteksi batas tiap objek, lalu memisahkannya menjadi PNG individual.</p>
+            <div class="pipeline">
+              <div class="pl-step"><div class="num">01</div><b>Kompose</b><span>tema, gaya, jumlah</span></div>
+              <div class="pl-step"><div class="num">02</div><b>Render sheet</b><span>1 gambar utuh</span></div>
+              <div class="pl-step"><div class="num">03</div><b>Auto‑crop</b><span>slice → PNG</span></div>
+            </div>
+            <div class="limits">
+              <div class="limit"><div class="n">4</div><div class="l">Min / gen</div></div>
+              <div class="limit"><div class="n accent">50</div><div class="l">Max / gen</div></div>
+              <div class="limit"><div class="n">PNG</div><div class="l">Format</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SHEET VIEW -->
+        <div class="view" id="viewSheet">
+          <div class="canvas-frame">
+            <div class="holder">
+              <img class="sheet-image" id="sheetImage" alt="Sprite sheet hasil generate" hidden>
+              <div class="loading" id="loading">
+                <div class="l-grid"><i class="lit"></i><i></i><i class="lit" style="animation-delay:.2s"></i><i></i><i class="lit" style="animation-delay:.4s"></i><i></i><i class="lit" style="animation-delay:.6s"></i><i></i><i class="lit" style="animation-delay:.8s"></i></div>
+                <div class="l-title">AI Processing</div>
+                <div class="l-bar"><i id="bar"></i></div>
+                <div class="l-phase" id="phase">Menyusun komposisi</div>
+              </div>
+            </div>
+            <div class="legend">
+              <span><i class="key-cut"></i> Batas auto‑crop</span>
+              <span><i class="key-tile"></i> 1 objek = 1 aset</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ASSETS VIEW -->
+        <div class="view" id="viewAssets">
+          <div class="asset-group-heading">
+            <div><span>ASSET GROUP</span><h2 id="assetGroupName">Kumpulan Aset</h2></div>
+            <span id="assetGroupMeta"></span>
+          </div>
+          <div class="assets-grid" id="assetsGrid"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="led"></span><span id="toastTxt"></span></div>
+
+
+<script src="/js/studio.js"></script>
+</body>
+</html>
