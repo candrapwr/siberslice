@@ -286,9 +286,9 @@ function renderCells(){
       offset = result.nextOffset;
       hasMore = result.hasMore;
       if (total === 0) {
-        status.textContent = 'Belum ada grup aset. Buat set pertama di SiberSlice Studio.';
+        status.textContent = 'Belum ada grup aset di sini — jadi yang pertama, buka SiberSlice Studio dan buat set pertamamu.';
       } else {
-        status.textContent = `Menampilkan ${grid.childElementCount} dari ${total} grup aset dari semua sesi`;
+        status.textContent = `Menampilkan ${grid.childElementCount} dari ${total} grup aset`;
       }
       moreButton.hidden = !hasMore;
     } catch {

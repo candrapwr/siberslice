@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>SiberSlice — AI Asset Generator</title>
-<meta name="description" content="Buat satu sprite sheet dari satu prompt, lalu unduh aset PNG transparan yang sudah terpotong." />
+<meta name="description" content="Ketik satu prompt, dapatkan sprite sheet lengkap dengan aset PNG transparan yang sudah terpotong — siap unduh satu per satu atau dalam ZIP." />
 <link rel="icon" type="image/svg+xml" href="/assets/siberslice-mark.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,8 +41,8 @@
           <h1>Buat satu sheet.<br><em>Ambil semua asetnya.</em></h1>
         </div>
         <div class="hero-intro">
-          <p>Masukkan satu prompt. SiberSlice memeriksa sprite sheet, mengukur area tiap aset dari gambar asli, lalu menyiapkan file PNG terpisah.</p>
-          <a class="primary-action" href="asset-generator.html">Mulai membuat aset <span aria-hidden="true">→</span></a>
+          <p>Ketik satu prompt, dan SiberSlice merender sprite sheet lalu memotongnya otomatis menjadi aset PNG transparan — siap pakai untuk game atau proyekmu.</p>
+          <a class="primary-action" href="asset-generator.html">Mulai buat aset <span aria-hidden="true">→</span></a>
         </div>
       </div>
 
@@ -73,7 +73,7 @@
               <small>12 ASET</small>
             </div>
             <div class="sheet-zone">
-              <div class="sheet-zone-head"><span>RENDER OUTPUT / TRANSPARENT PNG</span><span>1024 × 768</span></div>
+              <div class="sheet-zone-head"><span>RENDER OUTPUT / TRANSPARENT PNG</span><span>1536 × 1024</span></div>
               <div class="sheet-board">
                 <canvas id="pvCanvas" width="272" height="204" aria-label="Pratinjau sprite sheet berisi 12 aset"></canvas>
                 <span class="cut-tag cut-one">CUT 01</span>
@@ -90,10 +90,10 @@
       </div>
 
       <div class="hero-foot">
-        <div><b>04—50</b><span>aset genap per proses</span></div>
-        <div><b>01</b><span>prompt untuk satu set</span></div>
-        <div><b>PNG</b><span>latar transparan</span></div>
-        <p>Gambar satu sheet, ekspor banyak aset.</p>
+        <div><b>4–50</b><span>aset per sekali jalan</span></div>
+        <div><b>1</b><span>prompt untuk satu set lengkap</span></div>
+        <div><b>PNG</b><span>latar belakang transparan</span></div>
+        <p>Dibuat sebagai satu sheet. Diunduh sebagai aset terpisah.</p>
       </div>
     </div>
   </section>
@@ -103,11 +103,11 @@
       <div class="gallery-heading">
         <div>
           <p class="section-label"><span>02</span> Galeri hasil generate</p>
-          <h2>Set aset dari<br><em>studio komunitas.</em></h2>
+          <h2>Dibuat di studio,<br><em>langsung bisa diunduh.</em></h2>
         </div>
         <div class="gallery-intro">
-          <p>Jelajahi grup aset yang sudah dibuat, buka detailnya, lalu unduh semua PNG dalam satu ZIP.</p>
-          <span class="public-note"><i></i> Hasil dari semua sesi tampil publik</span>
+          <p>Semua aset yang pernah dibuat lewat studio tampil di sini. Buka satu grup untuk melihat isinya, lalu unduh seluruh PNG dalam satu file ZIP.</p>
+          <span class="public-note"><i></i> Galeri berisi hasil dari semua sesi publik</span>
         </div>
       </div>
       <div class="gallery-status" id="galleryStatus" role="status">Memuat galeri…</div>
@@ -121,13 +121,13 @@
       <div class="result-copy">
         <p class="section-label"><span>03</span> Hasil satu proses</p>
         <h2>Bukan cuma<br>gambar jadi.</h2>
-        <p>Setiap generate menyimpan sheet sumber dan aset yang sudah dipisahkan. Lihat hasilnya di studio, lalu unduh satu file atau seluruh paket sekaligus.</p>
+        <p>Setiap proses menyimpan sprite sheet sumber sekaligus seluruh aset yang sudah terpotong. Unduh satu PNG, atau ambil semuanya sekaligus dalam file ZIP.</p>
       </div>
       <div class="result-manifest">
         <div class="manifest-top"><span>OUTPUT MANIFEST</span><span>RUN_00A12 / COMPLETE</span></div>
         <div class="manifest-source">
           <span class="source-icon">▦</span>
-          <span><b>sprite-sheet.png</b><small>Sheet sumber · 1024 × 768 · alpha</small></span>
+          <span><b>sprite-sheet.png</b><small>Sheet sumber · 1536 × 1024 · transparan</small></span>
           <em>01</em>
         </div>
         <div class="manifest-divider"><span>DIPECAH MENJADI</span><i></i><b>12 FILE</b></div>
@@ -145,26 +145,26 @@
   <section class="process-section" id="cara">
     <div class="wrap">
       <div class="process-heading">
-        <p class="section-label"><span>04</span> Cara kerja engine</p>
-        <p>Empat status yang kamu lihat saat satu set aset sedang disiapkan.</p>
+        <p class="section-label"><span>04</span> Cara kerja</p>
+        <p>Empat tahap otomatis dari satu prompt menjadi sekumpulan aset.</p>
       </div>
       <ol class="process-log">
-        <li><span class="log-no">01</span><span class="log-dot"></span><div><b>Kompose</b><small>Prompt, tema, gaya, jumlah</small></div><em>READY</em></li>
-        <li><span class="log-no">02</span><span class="log-dot active"></span><div><b>Render sheet</b><small>Satu gambar berisi semua aset</small></div><em>PROCESS</em></li>
-        <li><span class="log-no">03</span><span class="log-dot"></span><div><b>Analisis batas</b><small>Setiap objek dipetakan dari bentuknya</small></div><em>NEXT</em></li>
-        <li><span class="log-no">04</span><span class="log-dot"></span><div><b>Slice &amp; export</b><small>PNG individual dan ZIP</small></div><em>OUTPUT</em></li>
+        <li><span class="log-no">01</span><span class="log-dot"></span><div><b>Susun permintaan</b><small>Prompt, tema, gaya, dan jumlah aset</small></div><em>INPUT</em></li>
+        <li><span class="log-no">02</span><span class="log-dot active"></span><div><b>Render sprite sheet</b><small>Satu gambar berisi semua aset</small></div><em>AI</em></li>
+        <li><span class="log-no">03</span><span class="log-dot"></span><div><b>Deteksi tiap objek</b><small>Batas aset dikenali otomatis dari bentuknya</small></div><em>ANALISIS</em></li>
+        <li><span class="log-no">04</span><span class="log-dot"></span><div><b>Potong &amp; ekspor</b><small>PNG transparan per aset, plus ZIP</small></div><em>OUTPUT</em></li>
       </ol>
-      <p class="process-note">Jumlah tetap genap. Ukuran dan posisi aset mengikuti bentuk objek, dengan jarak yang cukup agar mudah dipisahkan.</p>
+      <p class="process-note">4–50 aset per proses. Ukuran tiap hasil crop mengikuti bentuk objek aslinya, dengan jarak antaraset yang cukup agar tidak ada yang tersambung.</p>
     </div>
   </section>
 
   <section class="final-cta">
     <div class="wrap cta-shell">
       <div>
-        <p class="section-label"><span>05</span> Ready when you are</p>
-        <h2>Set aset berikutnya<br>mulai dari satu kalimat.</h2>
+        <p class="section-label"><span>05</span> Siap kapan pun kamu butuh</p>
+        <h2>Ketik satu kalimat,<br><em>dapat semua asetnya.</em></h2>
       </div>
-      <a class="cta-button" href="asset-generator.html"><span>✦</span> Buka SiberSlice <b>→</b></a>
+      <a class="cta-button" href="asset-generator.html"><span>✦</span> Buka SiberSlice Studio <b>→</b></a>
     </div>
   </section>
 </main>
@@ -226,7 +226,7 @@
   <section class="gallery-modal" role="dialog" aria-modal="true" aria-labelledby="galleryModalTitle">
     <header class="gallery-modal-head">
       <div>
-        <p class="section-label"><span>ASSET GROUP</span> HASIL GENERATE</p>
+        <p class="section-label"><span>SET ASET</span> HASIL DARI STUDIO</p>
         <h2 id="galleryModalTitle">Kumpulan Aset</h2>
         <p id="galleryModalMeta"></p>
       </div>

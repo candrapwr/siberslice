@@ -328,6 +328,7 @@ section[id] { scroll-margin-top: 72px; }
 .process-note { margin-top: 14px; color: var(--muted); font: 500 9px/1.5 var(--mono); letter-spacing: .02em; }
 
 .final-cta { padding: 86px 0; border-block: 1px solid var(--border-2); background: var(--surface-2); }
+.final-cta h2 em { color: var(--accent); font-style: normal; }
 .cta-shell { display: flex; align-items: center; justify-content: space-between; gap: 40px; }
 .final-cta .section-label { margin-bottom: 17px; }
 .cta-button { min-width: 214px; min-height: 53px; padding: 0 18px; }
