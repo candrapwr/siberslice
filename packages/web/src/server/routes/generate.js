@@ -113,7 +113,7 @@ export async function handleGenerate(req, res, id) {
       layout: result.layout,
       width: result.image.width,
       height: result.image.height,
-      sheetUrl: `${base}/files/runs/${runId}/sheet.png`,
+      sheetUrl: `${base}/files/runs/${runId}/${result.crop.sheetPreviewPath || "sheet.png"}`,
       exportUrl: `${base}/runs/${runId}/export`,
       assets: result.crop.assets.map((asset) => ({
         index: asset.index,

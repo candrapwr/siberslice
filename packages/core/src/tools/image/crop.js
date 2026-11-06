@@ -10,7 +10,7 @@ try:
 except ImportError:
     print(json.dumps({"validationError": "Auto-slicing membutuhkan NumPy. Jalankan python3 -m pip install numpy."}))
     sys.exit(0)
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 payload = json.load(sys.stdin)
 source = payload["source"]
@@ -21,6 +21,50 @@ expected_count = payload["expectedCount"]
 
 class CropValidationError(Exception):
     pass
+
+def remove_near_white_background(source_image):
+    rgb = np.asarray(source_image.convert("RGB"), dtype=np.uint8)
+    near_white = np.all(rgb >= 190, axis=2)
+    background_mask = Image.fromarray(np.where(near_white, 255, 0).astype(np.uint8), mode="L").copy()
+    edge_points = (
+        [(x, 0) for x in range(source_image.width)]
+        + [(x, source_image.height - 1) for x in range(source_image.width)]
+        + [(0, y) for y in range(1, source_image.height - 1)]
+        + [(source_image.width - 1, y) for y in range(1, source_image.height - 1)]
+    )
+    for point in edge_points:
+        if background_mask.getpixel(point) == 255:
+            ImageDraw.floodfill(background_mask, point, 128)
+    background = np.asarray(background_mask) == 128
+    if not np.any(background):
+        return source_image.convert("RGBA")
+
+    # Extend the matte by three pixels so antialiased edge pixels that are
+    # slightly darker than the background are also decontaminated.
+    blend_zone_image = Image.fromarray((background.astype(np.uint8) * 255), mode="L")
+    blend_zone = np.asarray(blend_zone_image.filter(ImageFilter.MaxFilter(7))) > 0
+    border_pixels = np.concatenate((rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]), axis=0)
+    background_samples = border_pixels[np.all(border_pixels >= 190, axis=1)]
+    background_color = (
+        np.median(background_samples, axis=0).astype(np.float32)
+        if len(background_samples)
+        else np.array([255, 255, 255], dtype=np.float32)
+    )
+    rgb_float = rgb.astype(np.float32)
+    background_float = np.maximum(background_color, 1)[None, None, :]
+    alpha = 1.0 - np.min(rgb_float / background_float, axis=2)
+    alpha = np.clip(alpha, 0.0, 1.0)
+    alpha[alpha < 0.08] = 0.0
+    safe_alpha = np.maximum(alpha, 1.0 / 255.0)
+    unmatte = (rgb_float - background_float * (1.0 - alpha[:, :, None])) / safe_alpha[:, :, None]
+    unmatte = np.clip(np.rint(unmatte), 0, 255).astype(np.uint8)
+    output_rgb = rgb.copy()
+    feathered = blend_zone & (alpha > 0)
+    cleared = blend_zone & (alpha == 0)
+    output_rgb[feathered] = unmatte[feathered]
+    output_rgb[cleared] = 0
+    output_alpha = np.where(blend_zone, np.rint(alpha * 255), 255).astype(np.uint8)
+    return Image.fromarray(np.dstack((output_rgb, output_alpha)), mode="RGBA")
 
 def connected_components(mask):
     """Label 8-connected foreground runs and return their bounding boxes."""
@@ -249,21 +293,7 @@ try:
         left, top, right, bottom = box
         asset_image = image.crop((left, top, right, bottom))
         if source_type == "near-white-background":
-            rgb_crop = np.asarray(asset_image.convert("RGB"), dtype=np.uint8)
-            near_white = np.all(rgb_crop > 245, axis=2)
-            background_mask = Image.fromarray(np.where(near_white, 255, 0).astype(np.uint8), mode="L")
-            edge_points = (
-                [(x, 0) for x in range(asset_image.width)]
-                + [(x, asset_image.height - 1) for x in range(asset_image.width)]
-                + [(0, y) for y in range(1, asset_image.height - 1)]
-                + [(asset_image.width - 1, y) for y in range(1, asset_image.height - 1)]
-            )
-            for point in edge_points:
-                if background_mask.getpixel(point) == 255:
-                    ImageDraw.floodfill(background_mask, point, 128)
-            background = np.asarray(background_mask) == 128
-            alpha_crop = np.where(background, 0, 255).astype(np.uint8)
-            asset_image.putalpha(Image.fromarray(alpha_crop, mode="L"))
+            asset_image = remove_near_white_background(asset_image)
 
         alpha_crop = np.asarray(asset_image.getchannel("A"), dtype=np.uint8)
         visible = alpha_crop > 64
@@ -299,8 +329,12 @@ except CropValidationError as error:
 if len(assets) != expected_count:
     raise ValueError("Validasi crop tidak menghasilkan jumlah aset yang diminta.")
 
+sheet_preview_path = os.path.join(os.path.dirname(source), "sheet-transparent.png")
+sheet_preview = image if source_type == "alpha" else remove_near_white_background(image)
+sheet_preview.save(sheet_preview_path, "PNG", optimize=True)
+
 with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-    archive.write(source, "sprite-sheet.png")
+    archive.write(sheet_preview_path, "sprite-sheet.png")
     for asset in assets:
         archive.write(asset["path"], "assets/" + asset["name"])
 
@@ -309,6 +343,7 @@ print(json.dumps({
     "height": height,
     "assets": assets,
     "zipPath": zip_path,
+    "sheetPreviewPath": "sheet-transparent.png",
     "detection": {
         "method": "connected-components",
         "source": source_type,

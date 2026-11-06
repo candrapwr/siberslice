@@ -35,7 +35,9 @@ function legacyGroupName(run, session) {
 async function groupFromRun(sessionId, sessionFolder, session, run) {
   if (!run || run.status === "failed" || !sessionIdPattern.test(run.runId ?? "")) return null;
   const runFolder = join(sessionFolder, "runs", run.runId);
-  const sheetPath = join(runFolder, "sheet.png");
+  const transparentSheetPath = join(runFolder, "sheet-transparent.png");
+  const sheetName = await isFile(transparentSheetPath) ? "sheet-transparent.png" : "sheet.png";
+  const sheetPath = join(runFolder, sheetName);
   const assetsFolder = join(runFolder, "assets");
   if (!(await isFile(sheetPath))) return null;
 
@@ -73,7 +75,7 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
     theme: typeof run.theme === "string" ? run.theme : "general",
     style: typeof run.style === "string" ? run.style : "general",
     count: Number(run.count) || assets.length,
-    thumbnailUrl: `/api/sessions/${sessionId}/files/runs/${run.runId}/sheet.png`,
+    thumbnailUrl: `/api/sessions/${sessionId}/files/runs/${run.runId}/${sheetName}`,
     exportUrl: `/api/sessions/${sessionId}/runs/${run.runId}/export`,
     assets,
   };

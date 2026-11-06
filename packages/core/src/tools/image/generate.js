@@ -1,7 +1,75 @@
-import { writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { requireProvider } from "../../providers/compatibility.js";
 import { imageDimensions, MAX_IMAGE_BYTES, readJsonResponse } from "./shared.js";
+import { runPython } from "../python-runner.js";
+
+const NORMALIZE_IMAGE_SCRIPT = String.raw`
+import json, sys
+try:
+    from PIL import Image
+except ImportError:
+    print(json.dumps({"error": "Konversi gambar membutuhkan Pillow. Jalankan python3 -m pip install Pillow."}))
+    sys.exit(0)
+
+payload = json.load(sys.stdin)
+try:
+    with Image.open(payload["inputPath"]) as source:
+        source.load()
+        source_format = source.format or "unknown"
+        source_mode = source.mode
+        image = source.convert("RGBA")
+        image.save(payload["outputPath"], format="PNG", optimize=True)
+    print(json.dumps({"format": source_format, "mode": source_mode, "width": image.width, "height": image.height}))
+except Exception as error:
+    print(json.dumps({"error": str(error)}))
+`;
+
+function decodeBase64Image(value) {
+  const encoded = value.trim().replace(/^data:image\/[^;,]+;base64,/i, "");
+  return Buffer.from(encoded, "base64");
+}
+
+async function saveGeneratedImage(buffer, workDir) {
+  if (buffer.length > MAX_IMAGE_BYTES) throw new Error("Ukuran sprite sheet melebihi batas 30 MB.");
+  const outputPath = join(workDir, "sheet.png");
+  const pngSignature = Buffer.from("89504e470d0a1a0a", "hex");
+
+  if (buffer.length >= pngSignature.length && buffer.subarray(0, pngSignature.length).equals(pngSignature)) {
+    const dimensions = imageDimensions(buffer);
+    await writeFile(outputPath, buffer);
+    return { ...dimensions, bytes: buffer.length, sourceFormat: "PNG", converted: false };
+  }
+
+  const temporaryId = randomUUID();
+  const inputPath = join(workDir, `.image-response-${temporaryId}.bin`);
+  const normalizedPath = join(workDir, `.image-normalized-${temporaryId}.png`);
+  try {
+    await writeFile(inputPath, buffer, { flag: "wx" });
+    const conversion = await runPython(NORMALIZE_IMAGE_SCRIPT, { inputPath, outputPath: normalizedPath }, workDir);
+    if (conversion.error) throw new Error(conversion.error);
+
+    const normalizedBuffer = await readFile(normalizedPath);
+    if (normalizedBuffer.length > MAX_IMAGE_BYTES) throw new Error("PNG hasil konversi melebihi batas 30 MB.");
+    const dimensions = imageDimensions(normalizedBuffer);
+    await writeFile(outputPath, normalizedBuffer);
+    return {
+      ...dimensions,
+      bytes: normalizedBuffer.length,
+      sourceFormat: conversion.format || "unknown",
+      converted: true,
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Hasil image generator bukan PNG dan gagal dikonversi: ${detail}`);
+  } finally {
+    await Promise.all([
+      rm(inputPath, { force: true }).catch(() => {}),
+      rm(normalizedPath, { force: true }).catch(() => {}),
+    ]);
+  }
+}
 
 async function fetchImageUrl(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(180_000) });
@@ -79,14 +147,24 @@ export async function generateImage({ prompt, workDir, provider, imageSize, reco
       ...summarizeImageResponse(entry),
     }));
     const item = body.data?.[0] ?? body.images?.[0];
-    if (typeof item?.b64_json === "string") buffer = Buffer.from(item.b64_json, "base64");
+    if (typeof item?.b64_json === "string") buffer = decodeBase64Image(item.b64_json);
     else if (typeof item?.url === "string") buffer = await fetchImageUrl(item.url);
-    else if (typeof item?.image_base64 === "string") buffer = Buffer.from(item.image_base64, "base64");
+    else if (typeof item?.image_base64 === "string") buffer = decodeBase64Image(item.image_base64);
     else throw new Error("Image generation tidak mengembalikan PNG, b64_json, atau URL gambar.");
   }
 
-  if (buffer.length > MAX_IMAGE_BYTES) throw new Error("Ukuran sprite sheet melebihi batas 30 MB.");
-  const dimensions = imageDimensions(buffer);
-  await writeFile(join(workDir, "sheet.png"), buffer);
-  return { path: "sheet.png", ...dimensions, bytes: buffer.length };
+  const savedImage = await saveGeneratedImage(buffer, workDir);
+  if (savedImage.converted) {
+    await recorder?.conversation({
+      provider: "imageGen",
+      direction: "normalization",
+      endpoint,
+      sourceFormat: savedImage.sourceFormat,
+      outputFormat: "PNG",
+      width: savedImage.width,
+      height: savedImage.height,
+      bytes: savedImage.bytes,
+    });
+  }
+  return { path: "sheet.png", ...savedImage };
 }

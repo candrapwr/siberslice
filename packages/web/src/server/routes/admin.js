@@ -253,7 +253,10 @@ export async function handleAdminSessionDetail(res, sessionId) {
         url: exists ? url : null,
       };
     }));
-    const sheetExists = await isFile(join(runFolder, "sheet.png"));
+    const sheetName = await isFile(join(runFolder, "sheet-transparent.png"))
+      ? "sheet-transparent.png"
+      : "sheet.png";
+    const sheetExists = await isFile(join(runFolder, sheetName));
     const logFolder = join(runFolder, "logs");
     return {
       runId: run.runId,
@@ -265,7 +268,7 @@ export async function handleAdminSessionDetail(res, sessionId) {
       style: run.style ?? null,
       count: Number(run.count) || assets.length,
       error: run.error ?? null,
-      sheetUrl: sheetExists ? `/api/sessions/${sessionId}/files/runs/${run.runId}/sheet.png` : null,
+      sheetUrl: sheetExists ? `/api/sessions/${sessionId}/files/runs/${run.runId}/${sheetName}` : null,
       assets: assets.filter((asset) => asset.url),
       logs: {
         conversation: await isFile(join(logFolder, "conversation.jsonl")),
