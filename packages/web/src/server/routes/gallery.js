@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { config, s3Configured } from "../../config/env.js";
 import { sendJson } from "../http.js";
@@ -16,15 +16,6 @@ async function directoryEntries(path) {
   }
 }
 
-async function isFile(path) {
-  try {
-    return (await stat(path)).isFile();
-  } catch (error) {
-    if (error?.code === "ENOENT") return false;
-    throw error;
-  }
-}
-
 function legacyGroupName(run, session) {
   const lastResult = session.lastResult;
   if (lastResult?.runId === run.runId && lastResult.groupName) return lastResult.groupName;
@@ -36,15 +27,6 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
   if (!run || run.status === "failed" || !sessionIdPattern.test(run.runId ?? "")) return null;
   const runFolder = join(sessionFolder, "runs", run.runId);
   const remote = s3Configured() && run.s3 ? run.s3 : null;
-  let sheetName;
-  if (remote) {
-    sheetName = remote["sheet-transparent.png"] ? "sheet-transparent.png" : "sheet.png";
-    if (!remote[sheetName]) return null;
-  } else {
-    const transparentSheetPath = join(runFolder, "sheet-transparent.png");
-    sheetName = await isFile(transparentSheetPath) ? "sheet-transparent.png" : "sheet.png";
-    if (!(await isFile(join(runFolder, sheetName)))) return null;
-  }
 
   let assets = Array.isArray(run.assets) ? run.assets : [];
   if (assets.length === 0) {
@@ -71,6 +53,17 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
     }));
   if (assets.length === 0) return null;
 
+  // Preview = up to 4 individual assets (spread evenly), not the full sheet (lighter & clearer).
+  const previewCount = 4;
+  const step = assets.length <= previewCount ? 1 : Math.floor((assets.length - 1) / (previewCount - 1));
+  const previewUrls = [];
+  for (let i = 0; i < assets.length && previewUrls.length < previewCount; i += step) {
+    previewUrls.push(assets[i].url);
+  }
+  if (assets.length > previewCount && !previewUrls.includes(assets.at(-1).url)) {
+    previewUrls[previewUrls.length - 1] = assets.at(-1).url;
+  }
+
   const createdAt = run.createdAt || session.createdAt || new Date(0).toISOString();
   return {
     id: `${sessionId}:${run.runId}`,
@@ -83,7 +76,7 @@ async function groupFromRun(sessionId, sessionFolder, session, run) {
     style: typeof run.style === "string" ? run.style : "general",
     count: Number(run.count) || assets.length,
     storage: remote ? "s3" : "local",
-    thumbnailUrl: `/api/sessions/${sessionId}/files/runs/${run.runId}/${sheetName}`,
+    previewUrls,
     exportUrl: `/api/sessions/${sessionId}/runs/${run.runId}/export`,
     assets,
   };

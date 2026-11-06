@@ -139,11 +139,17 @@ function renderCells(){
     button.setAttribute('aria-label', `Buka ${group.groupName}, ${group.count} aset`);
     const preview = document.createElement('span');
     preview.className = 'gallery-card-preview';
-    const image = document.createElement('img');
-    image.src = group.thumbnailUrl;
-    image.alt = '';
-    image.loading = 'lazy';
-    preview.append(image);
+    const thumbs = document.createElement('span');
+    thumbs.className = 'gallery-card-thumbs';
+    for (const url of (group.previewUrls ?? []).slice(0, 4)) {
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      thumbs.append(image);
+    }
+    preview.append(thumbs);
 
     const copy = document.createElement('span');
     copy.className = 'gallery-card-copy';
