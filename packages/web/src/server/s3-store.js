@@ -107,6 +107,17 @@ export async function uploadRun({ sessionId, runId, runDir, files }) {
   return manifest;
 }
 
+/**
+ * Fetch an object's full content (for S3 → local restore).
+ */
+export async function getObjectBuffer(storedKey) {
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+  const res = await getClient().send(new GetObjectCommand({ Bucket: config.s3.bucket, Key: storedKey }));
+  const bytes = [];
+  for await (const chunk of res.Body) bytes.push(chunk);
+  return Buffer.concat(bytes);
+}
+
 export async function headObject(storedKey) {
   try {
     const head = await getClient().send(new HeadObjectCommand({ Bucket: config.s3.bucket, Key: storedKey }));

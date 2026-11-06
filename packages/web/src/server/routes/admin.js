@@ -13,7 +13,9 @@ import {
   readSession,
   sessionIdPattern,
   sessionPath,
+  writeSession,
 } from "../session-store.js";
+import { restoreSessionToLocal } from "../restore-local.js";
 
 const sessionsDir = join(config.dataDir, "sessions");
 const REQUIRED_PYTHON_PACKAGES = ["Pillow", "NumPy"];
@@ -348,6 +350,32 @@ export async function handleDeleteAdminSession(res, sessionId) {
     }
     await rm(sessionPath(sessionId), { recursive: true });
     return sendJson(res, 200, { deleted: true, id: sessionId });
+  } finally {
+    endSessionDeletion(sessionId);
+  }
+}
+
+/**
+ * Restore a session's S3-backed runs to local disk (mirror of migrate-s3).
+ * Optionally purge the cloud copies (--like body { purgeRemote: true }).
+ */
+export async function handleSessionRestore(res, sessionId, body = {}) {
+  if (!sessionIdPattern.test(sessionId)) return sendError(res, 400, "Session ID tidak valid.");
+  if (!s3Configured()) return sendError(res, 409, "Penyimpanan S3 belum dikonfigurasi di server ini.");
+  if (!beginSessionDeletion(sessionId)) return sendError(res, 409, "Session sedang dipakai proses lain dan belum bisa dipulihkan.");
+  try {
+    const session = await readSession(sessionId);
+    if (!session) return sendError(res, 404, "Session tidak ditemukan.");
+    const hasS3Runs = (Array.isArray(session.value.runs) ? session.value.runs : []).some((run) => run?.s3);
+    if (!hasS3Runs) return sendError(res, 409, "Session ini tidak punya run yang tersimpan di S3.");
+    const purgeRemote = body?.purgeRemote === true;
+    const result = await restoreSessionToLocal(session.value, session.folder, { purgeRemote });
+    await writeSession(session.folder, session.value);
+    return sendJson(res, 200, { restored: true, id: sessionId, runs: result.runs, files: result.files, purgedRemote: purgeRemote });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    await recordServerError({ level: "error", type: "s3_restore_failed", sessionId, message: detail });
+    return sendError(res, 502, `Gagal memulihkan dari S3: ${detail}`);
   } finally {
     endSessionDeletion(sessionId);
   }

@@ -230,11 +230,24 @@ function renderSessionDetail(result) {
   const title = element("div", "detail-title");
   title.append(element("p", "eyebrow", "SESSION INSPECTOR"), element("h2", "", result.id));
   title.append(element("p", "detail-subtitle", `Dibuat ${formatDate(result.session.createdAt)} · Diperbarui ${formatDate(result.session.updatedAt)}`));
+  const actions = element("div", "detail-actions");
+  const hasS3Runs = (Array.isArray(result.session?.runs) ? result.session.runs : []).some((run) => run?.s3);
+  const restore = element("button", "restore-button", "Kembalikan ke Lokal");
+  restore.type = "button";
+  restore.hidden = !hasS3Runs;
+  restore.disabled = result.busy;
+  const purgeLabel = element("label", "restore-purge");
+  const purgeInput = document.createElement("input");
+  purgeInput.type = "checkbox";
+  purgeLabel.append(purgeInput, document.createTextNode(" Hapus dari S3"));
+  purgeLabel.hidden = !hasS3Runs;
+  restore.addEventListener("click", () => restoreSession(result.id, purgeInput.checked));
   const remove = element("button", "delete-button", result.busy ? "Sedang dipakai" : "Hapus sesi");
   remove.type = "button";
   remove.disabled = result.busy;
   remove.addEventListener("click", () => deleteSession(result.id));
-  header.append(title, remove);
+  actions.append(purgeLabel, restore, remove);
+  header.append(title, actions);
   detail.append(header);
 
   const stats = element("div", "detail-stats");
@@ -268,6 +281,23 @@ async function selectSession(id, { quiet = false } = {}) {
     byId("sessionDetail").hidden = false;
     byId("sessionDetail").replaceChildren(element("p", "run-error", error.message));
     if (!quiet) showToast(`Gagal memuat sesi: ${error.message}`, true);
+  }
+}
+
+async function restoreSession(id, purgeRemote) {
+  const warning = purgeRemote
+    ? `Unduh semua run sesi ${id} dari S3 ke disk server, lalu HAPUS salinan cloud-nya?`
+    : `Unduh semua run sesi ${id} dari S3 ke disk server (salinan cloud dipertahankan)?`;
+  if (!window.confirm(warning)) return;
+  try {
+    const result = await requestJson(`/api/admin/sessions/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ purgeRemote: Boolean(purgeRemote) }),
+    });
+    showToast(`${result.runs} run dipulihkan ke lokal (${result.files} file)${result.purgedRemote ? ", salinan S3 dihapus" : ""}.`);
+    await selectSession(id);
+  } catch (error) {
+    showToast(`Gagal memulihkan sesi: ${error.message}`, true);
   }
 }
 

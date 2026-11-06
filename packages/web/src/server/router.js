@@ -1,5 +1,5 @@
 import { publicConfig } from "../config/env.js";
-import { sendJson, sendError } from "./http.js";
+import { readJsonBody, sendJson, sendError } from "./http.js";
 import { sessionIdPattern } from "./session-store.js";
 import { handleCreateSession, handleGetSession } from "./routes/sessions.js";
 import { handleGenerate } from "./routes/generate.js";
@@ -14,6 +14,7 @@ import {
   handleAdminSessionDetail,
   handleAdminSessionList,
   handleDeleteAdminSession,
+  handleSessionRestore,
   isAdminAuthenticated,
 } from "./routes/admin.js";
 import { handleExport, handleSessionFile, serveStatic } from "./routes/files.js";
@@ -41,6 +42,15 @@ export async function routeRequest(req, res) {
   if (req.method === "GET" && adminLogsMatch) {
     if (!sessionIdPattern.test(adminLogsMatch[1])) return sendError(res, 400, "Session ID tidak valid.");
     return handleAdminRunLogs(res, adminLogsMatch[1], adminLogsMatch[2], adminLogsMatch[3]);
+  }
+
+  const adminRestoreMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)\/restore$/);
+  if (adminRestoreMatch) {
+    if (!sessionIdPattern.test(adminRestoreMatch[1])) return sendError(res, 400, "Session ID tidak valid.");
+    if (req.method === "POST") {
+      const body = await readJsonBody(req).catch(() => ({}));
+      return handleSessionRestore(res, adminRestoreMatch[1], body);
+    }
   }
 
   const adminSessionMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)$/);
