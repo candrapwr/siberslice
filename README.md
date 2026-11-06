@@ -222,7 +222,7 @@ Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan respon
 | Method | Endpoint | Keterangan |
 |---|---|---|
 | `GET` | `/api/config` | Status kesiapan dan nama model provider, tanpa API key. |
-| `GET` | `/api/gallery?offset=0` | Mengambil satu halaman berisi maksimal 12 grup aset publik. Respons memberikan `nextOffset` dan `hasMore` untuk tombol Load more. |
+| `GET` | `/api/gallery?offset=0` | Mengambil satu halaman berisi maksimal 20 grup aset publik. Respons memberikan `nextOffset` dan `hasMore` untuk tombol Load more. |
 | `POST` | `/api/sessions` | Membuat sesi baru. |
 | `GET` | `/api/sessions/:sessionId` | Membaca metadata sesi dan hasil terakhir. |
 | `POST` | `/api/sessions/:sessionId/generate` | Memulai proses generate dan mengirim progres melalui Server-Sent Events. |

@@ -5,7 +5,7 @@ import { sendJson } from "../http.js";
 import { sessionIdPattern } from "../session-store.js";
 
 const sessionsDir = join(config.dataDir, "sessions");
-const GALLERY_PAGE_SIZE = 12;
+const GALLERY_PAGE_SIZE = 20;
 
 async function directoryEntries(path) {
   try {
