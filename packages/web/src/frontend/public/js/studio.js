@@ -25,6 +25,8 @@ const generateButton = byId("genBtn");
 const loading = byId("loading");
 const progressBar = byId("bar");
 const phaseLabel = byId("phase");
+const assetPreviewOverlay = byId("assetPreviewOverlay");
+let lastAssetPreviewTrigger = null;
 
 for (const [id, name] of Object.entries(themeNames)) {
   const option = document.createElement("option");
@@ -98,6 +100,7 @@ function resetStudio() {
   byId("assetsGrid").replaceChildren();
   byId("assetGroupName").textContent = "Kumpulan Aset";
   byId("assetGroupMeta").textContent = "";
+  closeAssetPreview(false);
   byId("tabSheet").textContent = "";
   byId("tabAssets").textContent = "";
   byId("mGrid").textContent = "—";
@@ -108,6 +111,39 @@ function resetStudio() {
   byId("projName").textContent = sessionId ? `session ${sessionId.slice(0, 8)}` : "untitled sheet";
   selectView("sheet");
 }
+
+function openAssetPreview(asset, result, trigger) {
+  lastAssetPreviewTrigger = trigger;
+  const name = asset.label || asset.name.replace(/\.png$/i, "");
+  byId("assetPreviewTitle").textContent = name;
+  byId("assetPreviewMeta").textContent = `${asset.name} · ${asset.width || "?"}×${asset.height || "?"} px`;
+  const image = byId("assetPreviewImage");
+  image.src = `${asset.url}?v=${encodeURIComponent(result.runId)}`;
+  image.alt = name;
+  const download = byId("assetPreviewDownload");
+  download.href = asset.url;
+  download.download = asset.name;
+  assetPreviewOverlay.classList.add("open");
+  assetPreviewOverlay.setAttribute("aria-hidden", "false");
+  byId("assetPreviewClose").focus();
+}
+
+function closeAssetPreview(restoreFocus = true) {
+  if (!assetPreviewOverlay.classList.contains("open")) return;
+  assetPreviewOverlay.classList.remove("open");
+  assetPreviewOverlay.setAttribute("aria-hidden", "true");
+  byId("assetPreviewImage").removeAttribute("src");
+  if (restoreFocus) lastAssetPreviewTrigger?.focus();
+  lastAssetPreviewTrigger = null;
+}
+
+byId("assetPreviewClose").addEventListener("click", () => closeAssetPreview());
+assetPreviewOverlay.addEventListener("click", (event) => {
+  if (event.target === assetPreviewOverlay) closeAssetPreview();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && assetPreviewOverlay.classList.contains("open")) closeAssetPreview();
+});
 
 function renderResult(result) {
   currentResult = result;
@@ -133,12 +169,13 @@ function renderResult(result) {
   const grid = byId("assetsGrid");
   grid.replaceChildren();
   for (const asset of result.assets) {
-    const tile = document.createElement("a");
+    const tile = document.createElement("button");
+    tile.type = "button";
     tile.className = "tile";
-    tile.href = asset.url;
-    tile.download = asset.name;
-    tile.setAttribute("aria-label", `Unduh ${asset.label || asset.name}`);
+    const assetName = asset.label || asset.name.replace(/\.png$/i, "");
+    tile.setAttribute("aria-label", `Preview ${assetName}`);
     tile.title = asset.label || asset.name;
+    tile.addEventListener("click", () => openAssetPreview(asset, result, tile));
     const image = document.createElement("img");
     image.src = `${asset.url}?v=${encodeURIComponent(result.runId)}`;
     image.alt = asset.label || asset.name;
@@ -147,7 +184,7 @@ function renderResult(result) {
     index.textContent = String(asset.index).padStart(2, "0");
     const download = document.createElement("div");
     download.className = "go";
-    download.textContent = "↓ PNG";
+    download.textContent = "PREVIEW ↗";
     const label = document.createElement("div");
     label.className = "asset-name";
     label.textContent = asset.label || asset.name.replace(/\.png$/i, "");

@@ -172,6 +172,19 @@
 
 <div class="toast" id="toast"><span class="led"></span><span id="toastTxt"></span></div>
 
+<div class="asset-preview-overlay" id="assetPreviewOverlay" aria-hidden="true">
+  <section class="asset-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="assetPreviewTitle">
+    <header class="asset-preview-head">
+      <div><span>PNG PREVIEW</span><h2 id="assetPreviewTitle">Asset</h2><p id="assetPreviewMeta"></p></div>
+      <button class="asset-preview-close" id="assetPreviewClose" type="button" aria-label="Tutup preview">×</button>
+    </header>
+    <div class="asset-preview-stage"><img id="assetPreviewImage" alt="Preview aset" /></div>
+    <footer class="asset-preview-foot">
+      <span>Preview transparansi</span>
+      <a class="asset-preview-download" id="assetPreviewDownload" href="#" download>Unduh PNG <b>↓</b></a>
+    </footer>
+  </section>
+</div>
 
 <script src="/js/studio.js"></script>
 </body>

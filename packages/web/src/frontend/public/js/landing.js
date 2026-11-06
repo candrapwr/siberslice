@@ -117,13 +117,15 @@ function renderCells(){
   const status = document.getElementById('galleryStatus');
   const moreButton = document.getElementById('galleryMore');
   const overlay = document.getElementById('galleryOverlay');
-  if (!grid || !status || !moreButton || !overlay) return;
+  const previewOverlay = document.getElementById('galleryAssetPreview');
+  if (!grid || !status || !moreButton || !overlay || !previewOverlay) return;
 
   let offset = 0;
   let total = 0;
   let hasMore = true;
   let loading = false;
   let lastTrigger = null;
+  let lastPreviewTrigger = null;
 
   const formatDate = (value) => {
     const date = new Date(value);
@@ -185,11 +187,11 @@ function renderCells(){
     const assets = document.getElementById('galleryModalAssets');
     assets.replaceChildren();
     for (const asset of group.assets) {
-      const link = document.createElement('a');
+      const link = document.createElement('button');
+      link.type = 'button';
       link.className = 'gallery-asset';
-      link.href = asset.url;
-      link.download = asset.name;
-      link.setAttribute('aria-label', `Unduh ${asset.label || asset.name}`);
+      link.setAttribute('aria-label', `Preview ${asset.label || asset.name}`);
+      link.addEventListener('click', () => openAssetPreview(asset, link));
       const tile = document.createElement('span');
       tile.className = 'gallery-asset-preview';
       const assetImage = document.createElement('img');
@@ -210,18 +212,52 @@ function renderCells(){
   }
 
   function closeGroup() {
+    closeAssetPreview(false);
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
     updateModalLock();
     lastTrigger?.focus();
   }
 
+  function openAssetPreview(asset, trigger) {
+    lastPreviewTrigger = trigger;
+    const name = asset.label || asset.name;
+    document.getElementById('galleryAssetPreviewTitle').textContent = name;
+    document.getElementById('galleryAssetPreviewMeta').textContent = `${asset.name} · ${asset.width || '?'}×${asset.height || '?'} px`;
+    const image = document.getElementById('galleryAssetPreviewImage');
+    image.src = asset.url;
+    image.alt = name;
+    const download = document.getElementById('galleryAssetPreviewDownload');
+    download.href = asset.url;
+    download.download = asset.name;
+    previewOverlay.classList.add('open');
+    previewOverlay.setAttribute('aria-hidden', 'false');
+    updateModalLock();
+    document.getElementById('galleryAssetPreviewClose').focus();
+  }
+
+  function closeAssetPreview(restoreFocus = true) {
+    if (!previewOverlay.classList.contains('open')) return;
+    previewOverlay.classList.remove('open');
+    previewOverlay.setAttribute('aria-hidden', 'true');
+    document.getElementById('galleryAssetPreviewImage').removeAttribute('src');
+    updateModalLock();
+    if (restoreFocus) lastPreviewTrigger?.focus();
+    lastPreviewTrigger = null;
+  }
+
   document.getElementById('galleryModalClose').addEventListener('click', closeGroup);
+  document.getElementById('galleryAssetPreviewClose').addEventListener('click', () => closeAssetPreview());
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) closeGroup();
   });
+  previewOverlay.addEventListener('click', (event) => {
+    if (event.target === previewOverlay) closeAssetPreview();
+  });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && overlay.classList.contains('open')) closeGroup();
+    if (event.key !== 'Escape') return;
+    if (previewOverlay.classList.contains('open')) closeAssetPreview();
+    else if (overlay.classList.contains('open')) closeGroup();
   });
 
   async function loadMore() {
