@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { runAgent } from "@siberslice/core/agent";
@@ -10,6 +10,29 @@ import { createRunRecorder } from "../run-recorder.js";
 import { recordServerError } from "../server-log.js";
 import { objectKey, publicObjectUrl, runKeyPrefix, uploadRun } from "../s3-store.js";
 
+const MAX_REFERENCE_BYTES = 8 * 1024 * 1024; // decoded PNG/JPG limit
+const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
+const JPEG_MAGIC = Buffer.from("ffd8", "hex");
+const WEBP_RIFF = Buffer.from("52494646", "hex"); // "RIFF"
+
+function looksLikeImage(buffer) {
+  if (buffer.length < 12) return false;
+  if (buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) return true;
+  if (buffer.subarray(0, 2).equals(JPEG_MAGIC)) return true;
+  return buffer.subarray(0, 4).equals(WEBP_RIFF) && buffer.subarray(8, 12).toString("latin1") === "WEBP";
+}
+
+function decodeReference(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const match = /^data:image\/(png|jpe?g|webp);base64,/i.exec(value.trim());
+  const encoded = match ? value.trim().slice(value.indexOf(",") + 1) : value.trim();
+  if (!match && !/^[A-Za-z0-9+/=\s]+$/.test(encoded)) throw new Error("Format referensi gambar tidak dikenali (harus data URL PNG/JPG/WebP).");
+  const buffer = Buffer.from(encoded, "base64");
+  if (!buffer.length) throw new Error("Gambar referensi kosong.");
+  if (buffer.length > MAX_REFERENCE_BYTES) throw new Error("Gambar referensi maksimal 8 MB.");
+  if (!looksLikeImage(buffer)) throw new Error("Gambar referensi harus berformat PNG, JPG, atau WebP.");
+  return buffer;
+}
 
 function validateGeneration(body) {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -17,11 +40,13 @@ function validateGeneration(body) {
   if (!prompt) throw new Error("Prompt aset wajib diisi.");
   if (prompt.length > 4000) throw new Error("Prompt maksimal 4.000 karakter.");
   if (!Number.isInteger(count) || count < 4 || count > 50 || count % 2 !== 0) throw new Error("Jumlah aset harus bilangan genap dari 4 sampai 50.");
+  const reference = body?.reference ? decodeReference(body.reference) : null;
   return {
     prompt,
     count,
     theme: String(body.theme ?? "general").trim().slice(0, 80) || "general",
     style: String(body.style ?? "general").trim().slice(0, 80) || "general",
+    reference,
   };
 }
 
@@ -33,7 +58,8 @@ export async function handleGenerate(req, res, id) {
 
   let input;
   try {
-    input = validateGeneration(await readJsonBody(req));
+    // Base64 inflates bytes by ~4/3, so allow decoded 8 MB plus encoding overhead + prompt JSON.
+    input = validateGeneration(await readJsonBody(req, Math.ceil(MAX_REFERENCE_BYTES * 4 / 3) + 2 * 1024 * 1024));
     requireProvider(config.mainAi, "Main AI");
     requireProvider(config.imageGen, "Image generation");
   } catch (error) {
@@ -55,9 +81,14 @@ export async function handleGenerate(req, res, id) {
   }
   const runId = randomUUID();
   const runDir = join(session.folder, "runs", runId);
+  let referencePath = null;
   let recorder;
   try {
     await mkdir(runDir, { recursive: true });
+    if (input.reference) {
+      referencePath = join(runDir, "reference.png");
+      await writeFile(referencePath, input.reference, { flag: "wx" });
+    }
     recorder = await createRunRecorder(runDir);
     await recorder.event({
       level: "info",
@@ -65,7 +96,7 @@ export async function handleGenerate(req, res, id) {
       maxIterations: config.maxIterations,
       reasoningEffort: config.mainAiReasoningEffort,
       maxOutputTokens: config.mainAiMaxOutputTokens,
-      input: { prompt: input.prompt, theme: input.theme, style: input.style, count: input.count },
+      input: { prompt: input.prompt, theme: input.theme, style: input.style, count: input.count, reference: input.reference ? { bytes: input.reference.length } : null },
     });
   } catch (error) {
     releaseSession(id);
@@ -86,16 +117,18 @@ export async function handleGenerate(req, res, id) {
 
   try {
     const result = await runAgent({
-      input,
+      input: { prompt: input.prompt, theme: input.theme, style: input.style, count: input.count, reference: input.reference ? { bytes: input.reference.length } : null },
       workDir: runDir,
       providers: {
         mainAi: config.mainAi,
         imageGen: config.imageGen,
+        imageAnalyze: config.imageAnalyze,
       },
       imageSize: config.imageSize,
       maxIterations: config.maxIterations,
       reasoningEffort: config.mainAiReasoningEffort,
       maxOutputTokens: config.mainAiMaxOutputTokens,
+      referencePath,
       recorder,
       onProgress: (event) => {
         recorder.event({ level: event.phase === "tool_error" ? "error" : "info", type: "progress", detail: event }).catch(() => {});

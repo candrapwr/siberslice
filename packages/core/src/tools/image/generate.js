@@ -97,7 +97,7 @@ function summarizeImageResponse(entry) {
   return { status: entry.status, ok: entry.ok, payload };
 }
 
-export async function generateImage({ prompt, workDir, provider, imageSize, recorder }) {
+export async function generateImage({ prompt, workDir, provider, imageSize, recorder, referencePath }) {
   provider = requireProvider(provider, "Image generation");
   const endpoint = "/images/generations";
   const payload = {
@@ -106,18 +106,31 @@ export async function generateImage({ prompt, workDir, provider, imageSize, reco
     n: 1,
     size: imageSize,
     output_format: "png",
-    background: "transparent",
+    // background: "transparent",
   };
-  await recorder?.conversation({ provider: "imageGen", direction: "request", endpoint, payload });
+
+  let body = JSON.stringify(payload);
+  let headers = { authorization: `Bearer ${provider.apiKey}`, "content-type": "application/json" };
+  let logPayload = payload;
+  if (referencePath) {
+    // Image-to-image mode (provider "general" style, cf. helix_nebula): stay on
+    // the same JSON endpoint /images/generations and add an `image` property
+    // with pure base64 bytes (no data: URL prefix). Multipart is not accepted
+    // by this gateway class ("Request body must be valid JSON").
+    const { readFile, stat } = await import("node:fs/promises");
+    const info = await stat(referencePath);
+    if (!info.isFile()) throw new Error("File referensi tidak ditemukan di folder run.");
+    const imageBase64 = (await readFile(referencePath)).toString("base64");
+    body = JSON.stringify({ ...payload, image: imageBase64 });
+    logPayload = { ...payload, reference: { fileName: "reference.png", bytes: info.size, sentAs: "json field `image` (base64)", base64Bytes: imageBase64.length, mode: "image-to-image" } };
+  }
+  await recorder?.conversation({ provider: "imageGen", direction: "request", endpoint, payload: logPayload });
   let response;
   try {
     response = await fetch(`${provider.baseUrl}${endpoint}`, {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${provider.apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers,
+      body,
       signal: AbortSignal.timeout(240_000),
     });
   } catch (error) {

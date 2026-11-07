@@ -329,6 +329,38 @@ function logViewer(sessionId, runId, type, label) {
   return wrapper;
 }
 
+function promptsViewer(sessionId, runId) {
+  const wrapper = element("div", "log-viewer");
+  const toggle = element("button", "log-toggle", "Prompt image generator");
+  toggle.type = "button";
+  const output = element("pre", "log-output");
+  output.hidden = true;
+  let loaded = null;
+  toggle.addEventListener("click", async () => {
+    if (!output.hidden) { output.hidden = true; toggle.classList.remove("open"); return; }
+    output.hidden = false;
+    toggle.classList.add("open");
+    if (loaded !== null) { output.textContent = loaded; return; }
+    output.textContent = "Memuat prompt…";
+    try {
+      const result = await requestJson(`/api/admin/sessions/${encodeURIComponent(sessionId)}/runs/${encodeURIComponent(runId)}/image-prompts`);
+      loaded = result.attempts?.length
+        ? result.attempts.map((attempt) => [
+            "=".repeat(66),
+            `PERCOBAAN #${attempt.attempt} · ${attempt.timestamp ?? "-"} · model=${attempt.model ?? "-"} · size=${attempt.size ?? "-"} · referensi=${attempt.hasReference ? "YA" : "tidak"}`,
+            "=".repeat(66),
+            attempt.prompt,
+          ].join("\n")).join("\n\n")
+        : "Belum ada prompt generator tercatat di log percakapan run ini.";
+    } catch (error) {
+      loaded = `Gagal membaca prompt: ${error.message}`;
+    }
+    output.textContent = loaded;
+  });
+  wrapper.append(toggle, output);
+  return wrapper;
+}
+
 function buildRunCard(run, sessionId) {
   const card = element("article", `run-card status-${run.status}`);
   const head = element("header", "run-head");
@@ -422,6 +454,7 @@ function buildRunCard(run, sessionId) {
 
   const logs = element("div", "log-controls");
   logs.append(logViewer(sessionId, run.runId, "conversation", "Log percakapan AI"));
+  if (run.logs?.conversation) logs.append(promptsViewer(sessionId, run.runId));
   if (run.logs?.events) logs.append(logViewer(sessionId, run.runId, "events", "Run events"));
   content.append(logs);
   card.append(content);

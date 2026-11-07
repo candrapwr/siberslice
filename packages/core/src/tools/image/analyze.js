@@ -2,6 +2,19 @@ import { readFile } from "node:fs/promises";
 import { requireProvider } from "../../providers/compatibility.js";
 import { imageDimensions, MAX_IMAGE_BYTES, readJsonResponse, safePath } from "./shared.js";
 
+const MIME_SIGNATURES = [
+  { prefix: Buffer.from("89504e470d0a1a0a", "hex"), mime: "image/png" },
+  { prefix: Buffer.from("ffd8", "hex"), mime: "image/jpeg" },
+];
+
+function mimeForBuffer(buffer) {
+  for (const { prefix, mime } of MIME_SIGNATURES) {
+    if (buffer.subarray(0, prefix.length).equals(prefix)) return mime;
+  }
+  if (buffer.subarray(0, 4).toString("latin1") === "RIFF" && buffer.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
+  return "image/png";
+}
+
 function responseText(message) {
   if (typeof message?.content === "string") return message.content.trim();
   if (Array.isArray(message?.content)) {
@@ -14,8 +27,14 @@ export async function analyzeImage({ imagePath, prompt, workDir, provider, recor
   provider = requireProvider(provider, "Image analysis");
   const buffer = await readFile(safePath(workDir, imagePath));
   if (buffer.length > MAX_IMAGE_BYTES) throw new Error("Gambar terlalu besar untuk dianalisis (maksimum 30 MB).");
-  const dimensions = imageDimensions(buffer);
-  const imageData = `data:image/png;base64,${buffer.toString("base64")}`;
+  const mime = mimeForBuffer(buffer);
+  let sizeNote = "";
+  let dimensions = null;
+  try {
+    dimensions = imageDimensions(buffer); // PNG-only parser
+    sizeNote = ` Ukuran gambar: ${dimensions.width}×${dimensions.height} piksel.`;
+  } catch { /* non-PNG reference formats are fine for vision models */ }
+  const imageData = `data:${mime};base64,${buffer.toString("base64")}`;
   const endpoint = "/chat/completions";
   const payload = {
     model: provider.model,
@@ -23,12 +42,19 @@ export async function analyzeImage({ imagePath, prompt, workDir, provider, recor
     messages: [{
       role: "user",
       content: [
-        { type: "text", text: `${prompt}\n\nUkuran gambar: ${dimensions.width}×${dimensions.height} piksel. Bila diminta koordinat crop, gunakan koordinat piksel pada gambar asli.` },
+        { type: "text", text: `${prompt}${sizeNote} Bila diminta koordinat crop, gunakan koordinat piksel pada gambar asli.` },
         { type: "image_url", image_url: { url: imageData, detail: "high" } },
       ],
     }],
   };
-  await recorder?.conversation({ provider: "imageAnalyze", direction: "request", endpoint, payload });
+  await recorder?.conversation({ provider: "imageAnalyze", direction: "request", endpoint, payload: {
+    model: payload.model,
+    temperature: payload.temperature,
+    messages: [{ role: "user", content: [
+      { type: "text", text: payload.messages[0].content[0].text },
+      { type: "image_url", image_url: { detail: "high", imageBytes: buffer.length, mimeType: mime } },
+    ] }],
+  } });
 
   let response;
   try {

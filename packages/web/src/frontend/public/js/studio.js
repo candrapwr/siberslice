@@ -43,12 +43,83 @@ themeToggle.addEventListener("click", () => {
   themeSettings.hidden = expanded;
 });
 
+const refToggle = byId("refToggle");
+const refSettings = byId("refSettings");
+refToggle.addEventListener("click", () => {
+  const expanded = refToggle.getAttribute("aria-expanded") === "true";
+  refToggle.setAttribute("aria-expanded", String(!expanded));
+  refSettings.hidden = expanded;
+});
+
 function setCount(value) {
   const evenValue = Math.round((Number(value) || 4) / 2) * 2;
   const count = Math.max(4, Math.min(50, evenValue));
   range.value = String(count);
   countLabel.textContent = String(count);
 }
+
+/* ---- reference image (single image, image-to-image mode) ---- */
+const MAX_REFERENCE_BYTES = 8 * 1024 * 1024;
+const REFERENCE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+let referenceDataUrl = null;
+
+function setReferenceFromFile(file) {
+  if (!file) return;
+  if (!REFERENCE_TYPES.includes(file.type)) {
+    toast("Gambar referensi harus berformat PNG, JPG, atau WebP.");
+    return;
+  }
+  if (file.size > MAX_REFERENCE_BYTES) {
+    toast("Ukuran gambar referensi maksimal 8 MB.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    referenceDataUrl = String(reader.result);
+    byId("refImage").src = referenceDataUrl;
+    byId("refName").textContent = `${file.name || "referensi.png"} · ${file.size < 1024 ? `${file.size} B` : `${(file.size / 1024).toFixed(0)} KB`}`;
+    byId("refEmpty").hidden = true;
+    byId("refPreview").hidden = false;
+  };
+  reader.onerror = () => toast("Gagal membaca gambar referensi.");
+  reader.readAsDataURL(file);
+}
+
+function clearReference() {
+  referenceDataUrl = null;
+  byId("refInput").value = "";
+  byId("refImage").removeAttribute("src");
+  byId("refName").textContent = "";
+  byId("refEmpty").hidden = false;
+  byId("refPreview").hidden = true;
+}
+
+(() => {
+  const drop = byId("refDrop");
+  if (!drop) return;
+  const input = byId("refInput");
+  drop.addEventListener("click", (event) => {
+    if (event.target.closest(".ref-remove")) return;
+    input.click();
+  });
+  drop.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); }
+  });
+  input.addEventListener("change", () => setReferenceFromFile(input.files[0]));
+  for (const type of ["dragover", "dragenter"]) drop.addEventListener(type, (event) => { event.preventDefault(); drop.classList.add("dragging"); });
+  for (const type of ["dragleave", "drop"]) drop.addEventListener(type, (event) => { event.preventDefault(); drop.classList.remove("dragging"); });
+  drop.addEventListener("drop", (event) => {
+    const file = [...(event.dataTransfer?.files ?? [])].find((f) => REFERENCE_TYPES.includes(f.type)) ?? event.dataTransfer?.files?.[0];
+    setReferenceFromFile(file);
+  });
+  byId("refRemove").addEventListener("click", (event) => { event.stopPropagation(); clearReference(); });
+  document.addEventListener("paste", (event) => {
+    const file = [...(event.clipboardData?.files ?? [])].find((f) => REFERENCE_TYPES.includes(f.type));
+    if (!file) return;
+    event.preventDefault();
+    setReferenceFromFile(file);
+  });
+})();
 
 function selectView(view) {
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("on", tab.dataset.view === view));
@@ -326,6 +397,7 @@ generateButton.onclick = async () => {
         theme,
         style,
         count,
+        reference: referenceDataUrl ?? undefined,
       }),
     });
     if (currentAction !== actionSequence) return;

@@ -55,6 +55,8 @@ Tombol contoh cepat di Studio dapat mengisi prompt, tema, dan gaya untuk item RP
 
 Pilih tema, gaya visual, lalu tentukan jumlah aset genap dari **4 hingga 50**.
 
+Opsional: lampirkan **satu gambar referensi** (PNG, JPG, atau WebP, maksimal 8 MB) lewat bagian *Gambar Referensi* — klik untuk memilih file, seret-lepas, atau tempel dari clipboard. Gambar dikirim apa adanya ke image generator (mode image-to-image) dan, jika provider image analysis terisi di `.env`, sistem terlebih dahulu "melihat" gambar itu untuk menyusun ringkasan gaya yang dipegang AI utama sepanjang proses. Jelaskan cara pakainya di prompt, misalnya "ikuti palet warna gambar ini" atau "guna gaya garis referensi".
+
 ### 3. Generate dan unduh
 
 SiberSlice menampilkan progres saat sheet dibuat, batas objek ditemukan dari piksel, lalu aset dipotong dan divalidasi. Ukuran objek boleh berbeda dan posisi tidak harus mengikuti grid tetap. Setelah selesai, tab **Assets** terbuka otomatis. Buka tab **Sheet** untuk melihat gambar sumber, unduh satu aset dengan memilih gambarnya, atau unduh seluruh paket.
@@ -71,7 +73,7 @@ Agent menggunakan empat tool:
 
 | Tool | Fungsi |
 |---|---|
-| `image_gen` | Membuat sprite sheet PNG transparan dengan jumlah tepat dan daftar nama aset; ukuran dan posisi boleh berbeda. Sheet dapat dibuat ulang sekali jika segmentasi gagal menemukan jumlah yang diminta. |
+| `image_gen` | Membuat sprite sheet PNG transparan dengan jumlah tepat dan daftar nama aset; ukuran dan posisi boleh berbeda. Jika pengguna melampirkan gambar referensi, permintaan JSON yang sama ikut mengirim properti `image` berisi base64 gambar (mode image-to-image). Sheet dapat dibuat ulang sekali jika segmentasi gagal menemukan jumlah yang diminta. |
 | `crop_assets` | Membuat mask dari alpha PNG, mendeteksi komponen tersambung secara lokal, menggabungkan fragmen berdekatan hingga jumlah kelompok sesuai, lalu memotong dan memvalidasi PNG. Tidak meminta koordinat dari model AI. Untuk gambar tanpa transparansi, tool menghapus latar putih yang tersambung ke tepi crop sehingga detail putih tertutup outline tetap ada. |
 | `name_asset_group` | Memberi nama pada grup setelah seluruh aset berhasil dipotong. |
 | `exec` | Menjalankan perintah shell di folder kerja proses jika AI memerlukan pemrosesan tambahan. |
@@ -86,7 +88,7 @@ Nama file dibuat dalam format aman seperti `iron-sword.png` atau `health-potion.
 
 - Node.js 20 atau lebih baru.
 - Python 3, Pillow, dan NumPy untuk auto-slicing (`python3 -m pip install Pillow numpy`).
-- Dua konfigurasi API yang kompatibel dengan OpenAI: AI utama dengan tool calling dan image generation. Image analysis multimodal kini opsional.
+- Dua konfigurasi API yang kompatibel dengan OpenAI: AI utama dengan tool calling dan image generation. Image analysis multimodal bersifat opsional — dipakai hanya untuk mempelajari gambar referensi (lihat langkah 2); tanpa analyzer, referensi tetap dikirim apa adanya ke image generator.
 
 ### Menjalankan lokal
 
@@ -119,7 +121,7 @@ Untuk melihat log proses:
 pm2 logs siberslice
 ```
 
-Lengkapi konfigurasi AI utama dan image generation di `.env` sebelum generate. Indikator **PROVIDERS 2/2** di Studio menunjukkan kedua provider wajib sudah tersedia. Provider image analysis bersifat opsional dan tidak dipanggil oleh auto-slicing.
+Lengkapi konfigurasi AI utama dan image generation di `.env` sebelum generate. Indikator **PROVIDERS 2/2** di Studio menunjukkan kedua provider wajib sudah tersedia. Provider image analysis bersifat opsional: hanya dipakai untuk mempelajari gaya gambar referensi (dan tetap tidak dipanggil oleh auto-slicing).
 
 ### Konfigurasi provider AI
 
@@ -136,7 +138,7 @@ Setiap provider memiliki base URL, API key, dan nama model sendiri. Base URL umu
 | `SIBERSLICE_IMAGE_GEN_API_KEY` | API key image generation. |
 | `SIBERSLICE_IMAGE_GEN_MODEL` | Nama model gambar. |
 | `SIBERSLICE_IMAGE_GEN_SIZE` | Ukuran sprite sheet; default `1536x1024`. |
-| `SIBERSLICE_IMAGE_ANALYZE_BASE_URL` | Opsional; disimpan untuk penggunaan image analysis di masa depan. Tidak dipanggil dalam alur auto-slicing. |
+| `SIBERSLICE_IMAGE_ANALYZE_BASE_URL` | Opsional; dipakai untuk menganalisis gambar referensi (vision). Tidak dipanggil oleh alur auto-slicing. |
 | `SIBERSLICE_IMAGE_ANALYZE_API_KEY` | Opsional; API key image analysis. |
 | `SIBERSLICE_IMAGE_ANALYZE_MODEL` | Opsional; nama model vision. |
 | `SIBERSLICE_PORT` | Port HTTP server; default `8200`. |
@@ -172,7 +174,7 @@ SIBERSLICE_IMAGE_GEN_API_KEY=replace-me
 SIBERSLICE_IMAGE_GEN_MODEL=your-image-model
 SIBERSLICE_IMAGE_GEN_SIZE=1536x1024
 
-# Opsional dan saat ini tidak dipakai untuk auto-slicing.
+# Opsional; dipakai untuk mempelajari gaya gambar referensi (vision), bukan untuk auto-slicing.
 SIBERSLICE_IMAGE_ANALYZE_BASE_URL=https://vision.example.com/v1
 SIBERSLICE_IMAGE_ANALYZE_API_KEY=replace-me
 SIBERSLICE_IMAGE_ANALYZE_MODEL=your-vision-model
@@ -211,7 +213,8 @@ Jika `SIBERSLICE_S3_BUCKET`, `SIBERSLICE_S3_ACCESS_KEY`, dan `SIBERSLICE_S3_SECR
 
 - Provider utama harus menyediakan `/chat/completions` dan mendukung tool calling.
 - Image generator menerima permintaan `/images/generations` dengan `background: "transparent"` dan `output_format: "png"`. Hasil harus berupa PNG langsung, `data[0].b64_json`, `data[0].url`, atau field gambar kompatibel yang didukung provider.
-- Provider image analysis opsional; alur auto-slicing tidak mengirim gambar ke model vision.
+- Untuk mode gambar referensi, permintaan tetap memakai JSON ke endpoint `/images/generations` yang sama, dengan satu properti tambahan `image` berisi base64 murni (tanpa prefiks `data:image/...;base64,`) — format provider "general" (rujukan: helix_nebula `packages/core/src/tools/image/providers.ts`). Gateway OpenAI-like menerima ini sebagai image-to-image; format `multipart/form-data` sengaja tidak dipakai karena gateway menolak body non-JSON.
+- Provider image analysis opsional; hanya dipanggil sekali di awal proses ketika pengguna melampirkan gambar referensi (untuk menyusun ringkasan gaya). Auto-slicing tetap tidak pernah mengirim gambar ke model vision.
 
 API key hanya digunakan di server dan tidak dikirim ke browser.
 
@@ -219,7 +222,7 @@ API key hanya digunakan di server dan tidak dikirim ke browser.
 
 Sesi membuat ruang kerja sendiri dan tetap menyimpan hasil generate. Setiap proses generate mempunyai folder kerja terpisah di dalam sesi tersebut. Tool loop AI berlangsung hanya selama satu proses; prompt sebelumnya tidak dikirim sebagai riwayat percakapan ke permintaan generate berikutnya.
 
-Panel pengelola tersedia di `/admin`. Panel ini menampilkan daftar sesi, metadata session, prompt, sheet, aset PNG, ZIP, log percakapan AI, event proses, dan log error server. Pengelola dapat menghapus satu sesi beserta seluruh run, file lokal, dan objek S3-nya, serta memulihkan run dari S3 kembali ke disk lewat tombol **Kembalikan ke Lokal**. Pemeriksaan runtime di panel memverifikasi executable `python3`, versi Python, serta paket Pillow dan NumPy yang dipakai slicing.
+Panel pengelola tersedia di `/admin`. Panel ini menampilkan daftar sesi, metadata session, prompt, sheet, aset PNG, ZIP, log percakapan AI, prompt image generator (setiap percobaan/retry, diekstrak dari log percakapan), event proses, dan log error server. Pengelola dapat menghapus satu sesi beserta seluruh run, file lokal, dan objek S3-nya, serta memulihkan run dari S3 kembali ke disk lewat tombol **Kembalikan ke Lokal**. Pemeriksaan runtime di panel memverifikasi executable `python3`, versi Python, serta paket Pillow dan NumPy yang dipakai slicing.
 
 Panel admin memakai satu password bersama dari `SIBERSLICE_ADMIN_PASSWORD` dan cookie sesi HttpOnly yang berakhir setelah 8 jam. Jika password belum disetel, login dan endpoint admin dinonaktifkan. Autentikasi pengguna per akun belum tersedia; galeri dan endpoint generate tetap publik.
 
@@ -235,6 +238,7 @@ data/
         └── runs/
             └── <run-id>/
                 ├── sheet.png
+                ├── reference.png        # opsional, salinan gambar referensi dari pengguna
                 ├── assets/
                 │   ├── iron-sword.png
                 │   └── health-potion.png
@@ -248,7 +252,7 @@ Setiap kali Studio dibuka, aplikasi membuat sesi kosong dan tidak memulihkan has
 
 Grup yang selesai disimpan bersama nama AI, prompt, tema, gaya, jumlah aset, dan daftar nama PNG agar galeri publik dapat memuat hasil lintas sesi.
 
-Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan response AI utama serta image generator yang dipakai. Pemotongan tidak mengirim gambar ke image analyzer; batas objek dideteksi secara lokal. API key dan header autentikasi tidak dicatat. `logs/events.jsonl` menyimpan input run, progres tool, error beserta stack, dan status selesai/gagal. Error request server dicatat di `data/logs/server-errors.jsonl`. File log tetap di folder data dan tidak disajikan oleh endpoint file publik.
+Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan response AI utama serta image generator yang dipakai. Bila gambar referensi dilampirkan dan provider vision dikonfigurasi, satu panggilan `imageAnalyze` (ringkasan gaya referensi) juga tercatat — isi gambarnya tidak dibuang ke log, hanya ukuran byte dan MIME. Pemotongan tidak mengirim gambar ke image analyzer; batas objek dideteksi secara lokal. API key dan header autentikasi tidak dicatat. `logs/events.jsonl` menyimpan input run, progres tool, error beserta stack, dan status selesai/gagal. Error request server dicatat di `data/logs/server-errors.jsonl`. File log tetap di folder data dan tidak disajikan oleh endpoint file publik.
 
 ## API aplikasi
 
@@ -258,7 +262,7 @@ Setiap run menyimpan `logs/conversation.jsonl` berisi payload request dan respon
 | `GET` | `/api/gallery?offset=0` | Mengambil satu halaman berisi maksimal 20 grup aset publik (`previewUrls` maksimal 4 aset, `storage` `s3`/`local`, `nextOffset`/`hasMore` untuk Load more). |
 | `POST` | `/api/sessions` | Membuat sesi baru. |
 | `GET` | `/api/sessions/:sessionId` | Membaca metadata sesi dan hasil terakhir. |
-| `POST` | `/api/sessions/:sessionId/generate` | Memulai proses generate dan mengirim progres melalui Server-Sent Events. |
+| `POST` | `/api/sessions/:sessionId/generate` | Memulai proses generate dan mengirim progres melalui Server-Sent Events. Body JSON menerima `reference` (data URL base64 gambar referensi, opsional; PNG/JPG/WebP maksimal 8 MB). |
 | `GET` | `/api/sessions/:sessionId/files/:path` | Mengambil file hasil dari sesi. |
 | `GET` | `/api/sessions/:sessionId/runs/:runId/export` | Mengunduh ZIP hasil proses. |
 | `GET` | `/api/admin/auth` | Memeriksa konfigurasi password dan status login admin. |

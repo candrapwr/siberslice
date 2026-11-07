@@ -1,11 +1,13 @@
 import { requireProvider } from "../providers/compatibility.js";
 import { executeShell } from "../tools/cli/exec.js";
-import { cropAssets, generateImage } from "../tools/image/index.js";
+import { analyzeImage, cropAssets, generateImage } from "../tools/image/index.js";
 
 const MAX_IMAGE_ATTEMPTS = 2;
 const MAX_GRID_COLUMNS = 10;
 const GRID_WASTE_WEIGHT = 0.3;
 const DEFAULT_IMAGE_SIZE = "1536x1024";
+
+const sleepRetry = (attempt) => new Promise((resolve) => setTimeout(resolve, attempt * 2000));
 
 const tools = [
   {
@@ -150,9 +152,15 @@ function normalizeAssetNames(values, count) {
   });
 }
 
-function makeImagePrompt(modelPrompt, input, assetNames, imageSize) {
+function makeImagePrompt(modelPrompt, input, assetNames, imageSize, referenceBrief) {
   const orderedNames = assetNames.map((name, index) => `${index + 1}. ${name}`).join("; ");
-  return `${modelPrompt}\n\nSHEET REQUIREMENTS: ${input.count} distinct assets on one transparent PNG. Include one visual item for each item name in this order: ${orderedNames}. Keep their visual reading order aligned with the list. Arrangement: ${gridSentence(input.count, imageSize)}. Do not vary sizes drastically, do not rotate items, do not overlap. Never let two assets touch or merge, and keep every asset fully inside the canvas. Each asset must be a single connected silhouette: no detached dots, sparkles, rain drops, splashes, dust, floating parts, or swarms of separate objects — attach or omit every small detail. No text, labels, numbers, captions, borders, grid lines, or watermark.`;
+  let referenceNote = "";
+  if (input.reference) {
+    referenceNote = referenceBrief
+      ? `\nAn input reference image is attached to this request. Its style is: ${referenceBrief} Reproduce THIS style faithfully across all assets unless the user's own description above explicitly asks otherwise; do not invent unrelated styles.`
+      : "\nAn input reference image is attached to this request. Follow the user's own description above on how to use it.";
+  }
+  return `${modelPrompt}${referenceNote}\n\nSHEET REQUIREMENTS: ${input.count} distinct assets on one transparent PNG. Include one visual item for each item name in this order: ${orderedNames}. Keep their visual reading order aligned with the list. Arrangement: ${gridSentence(input.count, imageSize)}. Do not vary sizes drastically, do not rotate items, do not overlap. Never let two assets touch or merge, and keep every asset fully inside the canvas. Each asset must be a single connected silhouette: no detached dots, sparkles, rain drops, splashes, dust, floating parts, or swarms of separate objects — attach or omit every small detail. No text, labels, numbers, captions, borders, grid lines, or watermark.`;
 }
 
 async function callMainAi(messages, providerConfig, recorder, iteration, reasoningEffort, maxOutputTokens) {
@@ -169,28 +177,52 @@ async function callMainAi(messages, providerConfig, recorder, iteration, reasoni
   };
   await recorder?.conversation({ provider: "mainAi", direction: "request", endpoint: "/chat/completions", iteration, payload });
 
+  // Transient network faults (DNS blip, dropped connection, timeout) and
+  // rate-limit/5xx responses must not kill a run whose heavy work (sheet +
+  // crop) is already done — retry the same call with backoff before giving up.
+  const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+  const maxAttempts = 3;
   let response;
-  try {
-    response = await fetch(`${provider.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${provider.apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(120_000),
-    });
-  } catch (error) {
-    await recorder?.conversation({
-      provider: "mainAi",
-      direction: "error",
-      endpoint: "/chat/completions",
-      iteration,
-      error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
-    });
-    throw error;
+  let raw;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      response = await fetch(`${provider.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${provider.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!response.ok && RETRYABLE_STATUS.has(response.status) && attempt < maxAttempts) {
+        await response.text().catch(() => "");
+        await recorder?.conversation({ provider: "mainAi", direction: "retry", endpoint: "/chat/completions", iteration, attempt, status: response.status, reason: "retryable HTTP status" });
+        response = undefined;
+        await sleepRetry(attempt);
+        continue;
+      }
+      break;
+    } catch (error) {
+      // undici wraps connection failures as TypeError("fetch failed");
+      // AbortSignal.timeout raises TimeoutError. Both are transient.
+      const transient = ["TimeoutError", "AbortError", "TypeError"].includes(error?.name);
+      if (attempt < maxAttempts && transient) {
+        await recorder?.conversation({ provider: "mainAi", direction: "retry", endpoint: "/chat/completions", iteration, attempt, reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error) });
+        await sleepRetry(attempt);
+        continue;
+      }
+      await recorder?.conversation({
+        provider: "mainAi",
+        direction: "error",
+        endpoint: "/chat/completions",
+        iteration,
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error),
+      });
+      throw new Error(`Koneksi ke AI utama gagal setelah ${attempt} percobaan: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
-  const raw = await response.text();
+  raw = await response.text();
   let body;
   try {
     body = raw ? JSON.parse(raw) : {};
@@ -234,6 +266,7 @@ export async function runAgent({
   maxIterations = 50,
   reasoningEffort = "none",
   maxOutputTokens,
+  referencePath = null,
 }) {
   requireProvider(providers.mainAi, "Main AI");
   const iterationLimit = Number.isSafeInteger(maxIterations) && maxIterations > 0 ? maxIterations : 50;
@@ -241,6 +274,32 @@ export async function runAgent({
   const mainAiEffort = effortValues.includes(reasoningEffort) ? reasoningEffort : "none";
   const mainAiTokenLimit = Number.isSafeInteger(maxOutputTokens) && maxOutputTokens > 0 ? maxOutputTokens : undefined;
   const sheetGrid = chooseGrid(input.count, imageSize);
+
+  // When a reference image is attached and a vision provider is configured,
+  // "look" at it once so the (text-only) main AI and the image generator get a
+  // concrete style brief derived from the actual pixels instead of guessing.
+  let referenceBrief = null;
+  if (input.reference && referencePath && providers.imageAnalyze?.baseUrl && providers.imageAnalyze?.apiKey && providers.imageAnalyze?.model) {
+    onProgress({ phase: "reference_analysis", message: "AI melihat gambar referensi" });
+    try {
+      const analyzed = await analyzeImage({
+        imagePath: "reference.png",
+        prompt: "Gambar ini adalah referensi gaya untuk sprite sheet yang akan dibuat. Deskripsikan dalam 2-3 kalimat BAHASA INGGRIS: gaya seni (mis. pixel art, flat vector, cat air), palet warna dominan (sebutkan warna spesifik), garis/outlines, pencahayaan, dan mood. Sebutkan juga 3-5 warna hex dominan. Jangan jelaskan subjek/objeknya, fokus pada ciri gaya visual saja.",
+        workDir,
+        provider: providers.imageAnalyze,
+        recorder,
+      });
+      referenceBrief = JSON.parse(analyzed).analysis ?? null;
+      if (referenceBrief) referenceBrief = String(referenceBrief).replace(/\s+/g, " ").trim().slice(0, 700);
+      onProgress({ phase: "reference_analyzed", message: "Gaya referensi berhasil dipelajari" });
+    } catch (error) {
+      // Analysis is an enhancement; generation can still proceed with the raw reference attached.
+      const detail = error instanceof Error ? error.message : String(error);
+      await recorder?.event({ level: "warn", type: "reference_analysis_failed", message: detail }).catch(() => {});
+      onProgress({ phase: "reference_analysis_skipped", message: "Analisis referensi gagal; gambar tetap dikirim apa adanya" });
+    }
+  }
+
   const state = {
     generated: null,
     imageAttempts: 0,
@@ -253,7 +312,9 @@ export async function runAgent({
     { role: "system", content: systemPrompt(input, imageSize) },
     {
       role: "user",
-      content: `Prompt aset: ${input.prompt}\nTema: ${input.theme}\nGaya: ${input.style}\nJumlah: ${input.count}\nTata letak: grid rata ${sheetGrid.rows} baris x ${sheetGrid.columns} kolom dengan sel sama besar, satu aset per sel, jarak kosong lebar sekitar setengah lebar aset. Siapkan juga satu nama file deskriptif untuk setiap aset (satu objek tunggal yang menyatu, bukan gerombolan atau partikel terlepas).`,
+      content: `Prompt aset: ${input.prompt}\nTema: ${input.theme}\nGaya: ${input.style}\nJumlah: ${input.count}\nTata letak: grid rata ${sheetGrid.rows} baris x ${sheetGrid.columns} kolom dengan sel sama besar, satu aset per sel, jarak kosong lebar sekitar setengah lebar aset. Siapkan juga satu nama file deskriptif untuk setiap aset (satu objek tunggal yang menyatu, bukan gerombolan atau partikel terlepas).${input.reference ? (referenceBrief
+        ? `\nPengguna melampirkan gambar referensi yang akan ikut dikirim ke image generator. Hasil pengamatan vision terhadap gambar tersebut: ${referenceBrief} Gunakan ciri gaya ini saat menyusun prompt gambar, kecuali pengguna secara eksplisit meminta hal lain. Jangan mengarang gaya yang bertentangan dengan referensi.`
+        : "\nPengguna melampirkan gambar referensi yang akan ikut dikirim ke image generator bersama permintaan ini. Gambar itu hanya diteruskan apa adanya; cara pemakaiannya cukup ikuti penjelasan pengguna di prompt, jangan tambah-tambahi.") : ""}`,
     },
   ];
 
@@ -293,7 +354,7 @@ export async function runAgent({
           if (state.crop) throw new Error("Sheet sudah berhasil dipotong; tidak perlu membuat ulang.");
           const retryIssues = state.cropIssues;
           state.assetNames = normalizeAssetNames(args.assetNames, input.count);
-          let prompt = makeImagePrompt(args.prompt ?? input.prompt, input, state.assetNames, imageSize);
+          let prompt = makeImagePrompt(args.prompt ?? input.prompt, input, state.assetNames, imageSize, referenceBrief);
           if (retryIssues.length > 0) {
             prompt += `\n\nREQUIRED RETRY FIXES from local pixel segmentation: ${retryIssues.join("; ")}. Preserve the ${input.count} named assets and reading order, but redraw the sheet as a strict aligned ${sheetGrid.rows}x${sheetGrid.columns} grid of equal cells, draw every asset as ONE solid connected silhouette with no detached drops, sparkles, splashes, or separate swarm members, and keep every asset well away from the canvas borders and from each other.`;
           }
@@ -301,7 +362,7 @@ export async function runAgent({
           state.generated = null;
           state.crop = null;
           state.groupName = null;
-          state.generated = await generateImage({ prompt, workDir, provider: providers.imageGen, imageSize, recorder });
+          state.generated = await generateImage({ prompt, workDir, provider: providers.imageGen, imageSize, recorder, referencePath: input.reference ? referencePath : null });
           state.cropIssues = [];
           result = JSON.stringify({ ...state.generated, assetNames: state.assetNames });
           onProgress({

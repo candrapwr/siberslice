@@ -58,10 +58,32 @@
           </div>
         </div>
 
+        <!-- REFERENCE IMAGE -->
+        <div class="grp">
+          <button class="grp-head toggle-head" id="refToggle" type="button" aria-expanded="false" aria-controls="refSettings">
+            <span class="gn">2</span><span class="gt">Gambar Referensi <em>opsional</em></span><span class="toggle-icon" aria-hidden="true">+</span>
+          </button>
+          <div class="grp-body" id="refSettings" hidden>
+            <div class="ref-drop" id="refDrop" role="button" tabindex="0" aria-label="Pilih atau jatuhkan gambar referensi">
+              <input type="file" id="refInput" accept="image/png,image/jpeg,image/webp" hidden>
+              <div class="ref-empty" id="refEmpty">
+                <span class="ref-plus" aria-hidden="true">＋</span>
+                <b>Tempelkan atau pilih gambar</b>
+                <small>PNG · JPG · WebP · maks 8 MB — jelaskan cara pakainya di prompt</small>
+              </div>
+              <div class="ref-preview" id="refPreview" hidden>
+                <img id="refImage" alt="Pratinjau gambar referensi">
+                <button class="ref-remove" id="refRemove" type="button" aria-label="Hapus referensi">×</button>
+                <span class="ref-name" id="refName"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- THEME -->
         <div class="grp">
           <button class="grp-head toggle-head" id="themeToggle" type="button" aria-expanded="false" aria-controls="themeSettings">
-            <span class="gn">2</span><span class="gt">Tema &amp; Gaya</span><span class="toggle-icon" aria-hidden="true">+</span>
+            <span class="gn">3</span><span class="gt">Tema &amp; Gaya</span><span class="toggle-icon" aria-hidden="true">+</span>
           </button>
           <div class="grp-body" id="themeSettings" hidden>
             <div class="mini-lab">Tema</div>
@@ -86,7 +108,7 @@
 
         <!-- COUNT -->
         <div class="grp">
-          <div class="grp-head"><span class="gn">3</span><span class="gt">Jumlah Aset</span></div>
+          <div class="grp-head"><span class="gn">4</span><span class="gt">Jumlah Aset</span></div>
           <div class="grp-body">
             <div class="count-row">
               <button id="minus">−</button>

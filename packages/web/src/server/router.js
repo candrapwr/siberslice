@@ -9,6 +9,7 @@ import {
   handleAdminLogin,
   handleAdminLogout,
   handleAdminPythonCheck,
+  handleAdminImagePrompts,
   handleAdminRunLogs,
   handleAdminServerErrors,
   handleAdminSessionDetail,
@@ -46,6 +47,12 @@ export async function routeRequest(req, res) {
   if (req.method === "GET" && adminLogsMatch) {
     if (!sessionIdPattern.test(adminLogsMatch[1])) return sendError(res, 400, "Session ID tidak valid.");
     return handleAdminRunLogs(res, adminLogsMatch[1], adminLogsMatch[2], adminLogsMatch[3]);
+  }
+
+  const adminPromptsMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)\/runs\/([^/]+)\/image-prompts$/);
+  if (req.method === "GET" && adminPromptsMatch) {
+    if (!sessionIdPattern.test(adminPromptsMatch[1])) return sendError(res, 400, "Session ID tidak valid.");
+    return handleAdminImagePrompts(res, adminPromptsMatch[1], adminPromptsMatch[2]);
   }
 
   const adminRestoreMatch = pathname.match(/^\/api\/admin\/sessions\/([^/]+)\/restore$/);

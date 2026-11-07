@@ -394,6 +394,27 @@ export async function handleAdminRunLogs(res, sessionId, runId, logType) {
   return sendJson(res, 200, { sessionId, runId, type: logType, records });
 }
 
+// Audit view: every prompt actually sent to the image generator, extracted from
+// the existing conversation log (no extra file is written during generation).
+export async function handleAdminImagePrompts(res, sessionId, runId) {
+  if (!sessionIdPattern.test(runId)) return sendError(res, 400, "Run ID tidak valid.");
+  const result = await readSession(sessionId);
+  if (!result) return sendError(res, 404, "Session tidak ditemukan.");
+  const runFolder = join(result.folder, "runs", runId);
+  const records = await readJsonLines(join(runFolder, "logs", "conversation.jsonl"));
+  const attempts = records
+    .filter((record) => record.provider === "imageGen" && record.direction === "request")
+    .map((record, index) => ({
+      attempt: index + 1,
+      timestamp: record.timestamp ?? null,
+      model: record.payload?.model ?? null,
+      size: record.payload?.size ?? null,
+      hasReference: Boolean(record.payload?.reference),
+      prompt: typeof record.payload?.prompt === "string" ? record.payload.prompt : "",
+    }));
+  return sendJson(res, 200, { sessionId, runId, attempts });
+}
+
 export async function handleAdminPythonCheck(res) {
   try {
     const result = await runPython(pythonCheckScript, {}, config.dataDir, 15_000);
